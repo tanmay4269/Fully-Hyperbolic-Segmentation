@@ -133,8 +133,7 @@ def select_dataset(args):
         batch_size=args.batch_size, 
         num_workers=8, 
         pin_memory=True, 
-        shuffle=True,
-        drop_last=(args.dataset=='CelebA')
+        shuffle=(not args.debug),
     )
     val_loader = DataLoader(val_set, 
         batch_size=args.batch_size_test, 

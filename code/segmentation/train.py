@@ -28,13 +28,13 @@ from utils.initialize import (
 )
 from lib.utils.utils import AverageMeter
 
-# from utils.pytorch_fid.fid_score import val_FID, test_FID
 from utils.eval import compute_iou
 
 def getArguments():
     """ Parses command-line options. """
     parser = configargparse.ArgumentParser(description='VAE training', add_help=True)
 
+    parser.add_argument('--debug', action='store_true', help="One batch overfitting")
     parser.add_argument('-c', '--config_file', required=False, default=None, is_config_file=True, type=str, 
                         help="Path to config file.")
 
@@ -87,8 +87,6 @@ def getArguments():
                         help = "Number of convolutional layers in encoder.")
     parser.add_argument('--dec_layers', default=3, type=int, 
                         help = "Number of transposed convolutional layers in decoder.")
-    # parser.add_argument('--z_dim', default=128, type=int, 
-    #                     help = "Dimensionality of latent space.")
     parser.add_argument('--initial_filters', default=64, type=int, 
                         help = "Number of output filters of first convolutional layer. Gets doubled with each conv. layer.")
 
@@ -157,8 +155,9 @@ def main(args):
             # ------- Start iteration -------
             x, y = x.to(device), y.to(device)
             y_hat = model(x)
-            y = F.interpolate(y.float(), size=y_hat.shape[2:], mode='nearest').long().squeeze(1)
-            loss = F.cross_entropy(y_hat, y, ignore_index=255)
+
+            y_resized = F.interpolate(y.float(), size=y_hat.shape[2:], mode='nearest').long().squeeze(1)
+            loss = F.cross_entropy(y_hat, y_resized, ignore_index=255)
 
             optimizer.zero_grad()
             loss.backward()
@@ -168,6 +167,9 @@ def main(args):
                 log_loss.update(loss.detach().item())
 
             global_step += 1
+
+            if args.debug and i == 0:
+                break
             # ------- End iteration -------
 
         # ------- Start validation and logging -------
@@ -180,7 +182,7 @@ def main(args):
             }
 
             # Validation
-            metrics_dict_val = evaluate(model, val_loader, out_dim, device)
+            metrics_dict_val = evaluate(model, val_loader, out_dim, device, enable_debug=args.debug)
 
             metric_string = ""
             for key in metrics_dict.keys():
@@ -209,11 +211,11 @@ def main(args):
         print("Model not saved.")
 
     print("Testing...")
-    test(model, val_loader, test_loader, out_dim, device, args)
+    test(model, test_loader, out_dim, device)
     
 
 @torch.no_grad()
-def test(model, dataloader_val, dataloader_test, out_dim, device, args):
+def test(model, dataloader_test, out_dim, device):
     """ Tests models performance using Losses and FID """
     metrics_dict = evaluate(model, dataloader_test, out_dim, device)
 
@@ -224,7 +226,7 @@ def test(model, dataloader_val, dataloader_test, out_dim, device, args):
     print("Testing: {}".format(metric_string))
 
 @torch.no_grad()
-def evaluate(model, dataloader, num_classes, device):
+def evaluate(model, dataloader, num_classes, device, enable_debug):
     """ Evaluates model performance using loss and mIoU """
     model.eval()
     model.to(device)
@@ -234,26 +236,24 @@ def evaluate(model, dataloader, num_classes, device):
     num_batches = 0
 
     with torch.no_grad():
-        for x, y in dataloader:
+        for i, (x, y) in enumerate(dataloader):
             x, y = x.to(device), y.to(device)
             y_hat = model(x)
 
-            # Resize ground truth to match y_hat shape
             y_resized = F.interpolate(y.float(), size=y_hat.shape[2:], mode='nearest').long().squeeze(1)
-
             loss = F.cross_entropy(y_hat, y_resized, ignore_index=255)
             total_loss += loss.item()
 
             preds = torch.argmax(y_hat, dim=1)
             total_iou += compute_iou(preds, y_resized, num_classes)
-            num_batches += 1
 
-    avg_loss = total_loss / num_batches
-    mean_iou = total_iou / num_batches
+            num_batches += 1
+            if enable_debug and i == 0:
+                break
 
     return {
-        'Loss': avg_loss,
-        'mIoU': mean_iou
+        'Loss': total_loss / num_batches,
+        'mIoU%': total_iou / num_batches * 100.0
     }
 
 # ----------------------------------
