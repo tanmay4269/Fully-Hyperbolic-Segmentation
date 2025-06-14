@@ -72,10 +72,6 @@ def getArguments():
     parser.add_argument('--lr_scheduler_gamma', default=0.1, type=float,
                         help="Gamma parameter of LR scheduler.")
 
-    # KL Loss hyperparameters
-    parser.add_argument('--kl_coeff', default=0.024, type=float, 
-                        help='Set a fixed value for balancing reconstruction- and kl-loss.')
-
     # General validation/testing hyperparameters
     parser.add_argument('--batch_size_test', default=128, type=int, 
                         help = "Validation/Testing batch size.")

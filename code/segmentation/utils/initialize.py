@@ -97,7 +97,7 @@ def select_dataset(args):
 
         target_transform = transforms.Compose([
             transforms.Resize(img_size, interpolation=transforms.InterpolationMode.NEAREST),
-            transforms.ToTensor()
+            transforms.PILToTensor()
         ])
 
         train_set = VOCSegmentation(
@@ -124,7 +124,7 @@ def select_dataset(args):
             generator=torch.Generator().manual_seed(1)
         )
 
-        out_dim = 21  # Number of classes in VOC dataset
+        out_dim = 21  # Known about VOC
     else:
         raise "Selected dataset '{}' not available.".format(args.dataset)
     
