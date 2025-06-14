@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from .Seg_blocks import E_Encoder, E_Decoder
 
@@ -44,4 +45,7 @@ class ESeg(nn.Module):
         )
 
     def forward(self, x):
-        return self.decoder(self.encoder(x))
+        out = self.decoder(self.encoder(x))
+        upsampled = F.interpolate(out, scale_factor=2, mode='bilinear', align_corners=False)
+        return upsampled
+        

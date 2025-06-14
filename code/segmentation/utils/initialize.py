@@ -9,6 +9,7 @@ from torch.optim.lr_scheduler import StepLR
 # from models.LVAE import LVAE
 from models.ESeg import ESeg
 
+
 def load_checkpoint(model, optimizer, lr_scheduler, args):
     """ Loads a checkpoint from file-system. """
 
@@ -42,7 +43,17 @@ def load_model_checkpoint(model, checkpoint_path):
 def select_model(out_dim, args):
     """ Selects and sets up an available model and returns it. """
 
-    if args.model == "E-Seg":
+    if args.debug:
+        print("[Debug] Loading smp.Unet instead of your model choice")
+        import segmentation_models_pytorch as smp
+ 
+        model = smp.Unet(
+            encoder_name="resnet18", 
+            # encoder_weights="imagenet",
+            in_channels=3,
+            classes=21
+        )
+    elif args.model == "E-Seg":
         model = ESeg(
             args.enc_layers, 
             args.dec_layers, 
@@ -83,7 +94,8 @@ def select_dataset(args):
     if args.dataset == 'VOC':
         from torchvision.datasets import VOCSegmentation
 
-        img_size = (128, 128)  
+        img_size = (512, 512)  
+        out_dim = 21  # Known about VOC
 
         train_transform = transforms.Compose([
             transforms.Resize(img_size),
@@ -123,25 +135,26 @@ def select_dataset(args):
             [num_val, num_test], 
             generator=torch.Generator().manual_seed(1)
         )
-
-        out_dim = 21  # Known about VOC
     else:
         raise "Selected dataset '{}' not available.".format(args.dataset)
     
     # Dataloader
-    train_loader = DataLoader(train_set, 
+    train_loader = DataLoader(
+        train_set, 
         batch_size=args.batch_size, 
         num_workers=8, 
         pin_memory=True, 
         shuffle=(not args.debug),
     )
-    val_loader = DataLoader(val_set, 
+    val_loader = DataLoader(
+        val_set if not args.debug else train_set, 
         batch_size=args.batch_size_test, 
         num_workers=8, 
         pin_memory=True, 
         shuffle=False
     )
-    test_loader = DataLoader(test_set, 
+    test_loader = DataLoader(
+        test_set if not args.debug else train_set, 
         batch_size=args.batch_size_test, 
         num_workers=8, 
         pin_memory=True, 

@@ -1,54 +1,37 @@
 Running experiment: E-Seg
 Arguments:
-Namespace(debug=True, config_file='segmentation/config/E-Seg.txt', exp_name='E-Seg', output_dir=None, device=['cuda:0'], dtype='float32', seed=1, load_checkpoint=None, num_epochs=70, batch_size=100, lr=0.005, weight_decay=0.0, optimizer='Adam', use_lr_scheduler=True, lr_scheduler_step=50, lr_scheduler_gamma=0.1, batch_size_test=512, model='E-Seg', enc_layers=4, dec_layers=4, initial_filters=64, learn_K=False, embed_K=1.0, enc_K=1.0, dec_K=1.0, dataset='VOC')
+Namespace(debug=True, config_file='segmentation/config/E-Seg.txt', exp_name='E-Seg', output_dir=None, device=['cuda:0'], dtype='float32', seed=422, load_checkpoint=None, num_epochs=70, batch_size=100, lr=0.005, weight_decay=0.0, optimizer='Adam', use_lr_scheduler=True, lr_scheduler_step=50, lr_scheduler_gamma=0.1, batch_size_test=512, model='E-Seg', enc_layers=4, dec_layers=4, initial_filters=64, learn_K=False, embed_K=1.0, enc_K=1.0, dec_K=1.0, dataset='VOC')
 Loading dataset...
 Creating model...
--> Number of model params: 4345173 (trainable: 4345173)
+[Debug] Loading smp.Unet instead of your model choice
+-> Number of model params: 14331109 (trainable: 14331109)
 Creating optimizer...
 Training...
 0it [00:00, ?it/s]0it [00:00, ?it/s]
-Epoch 1/70: , Loss = 3.0602, Val_Loss = 3.4360, Val_mIoU% = 0.3087
-0it [00:00, ?it/s]0it [00:00, ?it/s]
-Epoch 2/70: , Loss = 2.9862, Val_Loss = 3.4473, Val_mIoU% = 0.2934
-0it [00:00, ?it/s]0it [00:00, ?it/s]
-Epoch 3/70: , Loss = 2.9537, Val_Loss = 3.3150, Val_mIoU% = 0.2827
-0it [00:00, ?it/s]0it [00:00, ?it/s]
-Epoch 4/70: , Loss = 2.9128, Val_Loss = 3.1856, Val_mIoU% = 0.2498
-0it [00:00, ?it/s]0it [00:00, ?it/s]
-Epoch 5/70: , Loss = 2.8751, Val_Loss = 3.1075, Val_mIoU% = 0.4156
-0it [00:00, ?it/s]0it [00:00, ?it/s]
-Epoch 6/70: , Loss = 2.8354, Val_Loss = 3.0754, Val_mIoU% = 0.4052
-0it [00:00, ?it/s]0it [00:00, ?it/s]
-Epoch 7/70: , Loss = 2.7999, Val_Loss = 3.0533, Val_mIoU% = 0.3986
-0it [00:00, ?it/s]0it [00:00, ?it/s]
-Epoch 8/70: , Loss = 2.7629, Val_Loss = 3.0187, Val_mIoU% = 0.5243
-0it [00:00, ?it/s]0it [00:00, ?it/s]
+/opt/conda/lib/python3.11/site-packages/torch/nn/modules/module.py:1739: UserWarning: Implicit dimension choice for softmax has been deprecated. Change the call to include dim=X as an argument.
+  return self._call_impl(*args, **kwargs)
 Traceback (most recent call last):
   File "/root/Projects/HyperbolicCV/code/segmentation/train.py", line 275, in <module>
     main(args)
-  File "/root/Projects/HyperbolicCV/code/segmentation/train.py", line 181, in main
+  File "/root/Projects/HyperbolicCV/code/segmentation/train.py", line 182, in main
     metrics_dict_val = evaluate(model, val_loader, out_dim, device, enable_debug=args.debug)
                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   File "/opt/conda/lib/python3.11/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
     return func(*args, **kwargs)
            ^^^^^^^^^^^^^^^^^^^^^
-  File "/root/Projects/HyperbolicCV/code/segmentation/train.py", line 235, in evaluate
-    for i, (x, y) in enumerate(dataloader):
-  File "/opt/conda/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 708, in __next__
-    data = self._next_data()
-           ^^^^^^^^^^^^^^^^^
-  File "/opt/conda/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1458, in _next_data
-    idx, data = self._get_data()
-                ^^^^^^^^^^^^^^^^
-  File "/opt/conda/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1410, in _get_data
-    success, data = self._try_get_data()
-                    ^^^^^^^^^^^^^^^^^^^^
-  File "/opt/conda/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1251, in _try_get_data
-    data = self._data_queue.get(timeout=timeout)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/conda/lib/python3.11/queue.py", line 180, in get
-    self.not_empty.wait(remaining)
-  File "/opt/conda/lib/python3.11/threading.py", line 331, in wait
-    gotit = waiter.acquire(True, timeout)
-            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-KeyboardInterrupt
+  File "/root/Projects/HyperbolicCV/code/segmentation/train.py", line 244, in evaluate
+    total_iou += compute_iou(y_hat, y.squeeze(1))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1739, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1750, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/segmentation_models_pytorch/utils/metrics.py", line 20, in forward
+    return F.iou(
+           ^^^^^^
+  File "/opt/conda/lib/python3.11/site-packages/segmentation_models_pytorch/utils/functional.py", line 41, in iou
+    intersection = torch.sum(gt * pr)
+                             ~~~^~~~
+RuntimeError: The size of tensor a (512) must match the size of tensor b (21) at non-singleton dimension 1

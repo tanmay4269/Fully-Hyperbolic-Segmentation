@@ -26,9 +26,10 @@ from utils.initialize import (
     select_optimizer,
     select_dataset
 )
-from lib.utils.utils import AverageMeter
+from lib.utils.utils import AverageMeter, compute_iou
 
-from utils.eval import compute_iou
+# import segmentation_models_pytorch.losses as smp_losses
+
 
 def getArguments():
     """ Parses command-line options. """
@@ -152,8 +153,7 @@ def main(args):
             x, y = x.to(device), y.to(device)
             y_hat = model(x)
 
-            y_resized = F.interpolate(y.float(), size=y_hat.shape[2:], mode='nearest').long().squeeze(1)
-            loss = F.cross_entropy(y_hat, y_resized, ignore_index=255)
+            loss = F.cross_entropy(y_hat, y.squeeze(1).long(), ignore_index=255)
 
             optimizer.zero_grad()
             loss.backward()
@@ -236,12 +236,11 @@ def evaluate(model, dataloader, num_classes, device, enable_debug):
             x, y = x.to(device), y.to(device)
             y_hat = model(x)
 
-            y_resized = F.interpolate(y.float(), size=y_hat.shape[2:], mode='nearest').long().squeeze(1)
-            loss = F.cross_entropy(y_hat, y_resized, ignore_index=255)
+            loss = F.cross_entropy(y_hat, y.squeeze(1).long(), ignore_index=255)
             total_loss += loss.item()
 
             preds = torch.argmax(y_hat, dim=1)
-            total_iou += compute_iou(preds, y_resized, num_classes)
+            total_iou += compute_iou(preds, y.squeeze(1))
 
             num_batches += 1
             if enable_debug and i == 0:

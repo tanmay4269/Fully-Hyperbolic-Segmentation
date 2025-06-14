@@ -7,13 +7,13 @@ exp_name = E-Seg
 # General settings
 device = cuda:0
 dtype = float32
-seed = 422
+seed = 42
 #load_checkpoint = generation/output/E-Seg
 
 # General training hyperparameters
 num_epochs = 70
-batch_size = 100
-lr = 5e-3
+batch_size = 8
+lr = 1e-3
 weight_decay = 0
 optimizer = Adam
 use_lr_scheduler = True
@@ -21,7 +21,7 @@ lr_scheduler_step = 50
 lr_scheduler_gamma = 0.1
 
 # General validation/testing hyperparameters
-batch_size_test = 512
+batch_size_test = 8
 
 # General VAE hyperparameters
 model = E-Seg

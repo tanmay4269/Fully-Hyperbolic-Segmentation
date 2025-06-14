@@ -67,3 +67,43 @@ def accuracy(output, target, topk=(1,)):
         correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
+
+@torch.no_grad()
+def compute_iou(preds, targets, num_classes=21, ignore_index=255):
+    """
+    Computes mean IoU over all classes, ignoring the `ignore_index` in targets.
+
+    Args:
+        preds: (N, H, W) predicted class indices
+        targets: (N, 1, H, W) ground truth with class indices
+        num_classes: total number of valid classes
+        ignore_index: label in targets to ignore (usually 255)
+
+    Returns:
+        mean IoU across valid classes (float)
+    """
+    assert len(preds.shape) == 3
+    assert len(targets.shape) == 3
+
+    mask = targets != ignore_index
+    ious = []
+
+    for cls in range(num_classes):
+        pred_inds = (preds == cls)
+        target_inds = (targets == cls)
+
+        # Apply mask to both
+        pred_inds = pred_inds & mask
+        target_inds = target_inds & mask
+
+        intersection = (pred_inds & target_inds).sum().item()
+        union = (pred_inds | target_inds).sum().item()
+
+        if union == 0:
+            continue  # skip class if not present
+        ious.append(intersection / union)
+
+    if not ious:
+        return 0.0
+
+    return sum(ious) / len(ious)
