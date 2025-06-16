@@ -12,61 +12,8 @@ from tqdm import tqdm
 import os
 from torchmetrics.classification import MulticlassJaccardIndex
 
-import segmentation_models_pytorch as smp
+from segmentation.fpn import FPN
 
-class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(ConvBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(out_channels)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(out_channels)
-        self.relu = nn.ReLU(inplace=True)
-
-    def forward(self, x):
-        x = self.relu(self.bn1(self.conv1(x)))
-        x = self.relu(self.bn2(self.conv2(x)))
-        return x
-
-class CustomSegmentation(nn.Module):
-    def __init__(self, in_channels=3, num_classes=21):  # 21 classes for Pascal VOC
-        super(CustomSegmentation, self).__init__()
-        
-        # Encoder
-        self.enc1 = ConvBlock(in_channels, 64)
-        self.enc2 = ConvBlock(64, 128)
-        self.enc3 = ConvBlock(128, 256)
-        self.enc4 = ConvBlock(256, 512)
-        self.enc5 = ConvBlock(512, 1024)
-        
-        # Decoder
-        self.dec4 = ConvBlock(1024 + 512, 512)
-        self.dec3 = ConvBlock(512 + 256, 256)
-        self.dec2 = ConvBlock(256 + 128, 128)
-        self.dec1 = ConvBlock(128 + 64, 64)
-        
-        # Final layer
-        self.final = nn.Conv2d(64, num_classes, kernel_size=1)
-        
-        # Pooling and upsampling
-        self.pool = nn.MaxPool2d(2, 2)
-        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-
-    def forward(self, x):
-        # Encoder
-        e1 = self.enc1(x)
-        e2 = self.enc2(self.pool(e1))
-        e3 = self.enc3(self.pool(e2))
-        e4 = self.enc4(self.pool(e3))
-        e5 = self.enc5(self.pool(e4))
-        
-        # Decoder with skip connections
-        d4 = self.dec4(torch.cat([self.up(e5), e4], dim=1))
-        d3 = self.dec3(torch.cat([self.up(d4), e3], dim=1))
-        d2 = self.dec2(torch.cat([self.up(d3), e2], dim=1))
-        d1 = self.dec1(torch.cat([self.up(d2), e1], dim=1))
-        
-        return self.final(d1)
 
 class VOCDatasetWrapper:
     def __init__(self, root, image_set='train', transform=None, target_transform=None):
@@ -189,21 +136,7 @@ def main():
     # val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=2, pin_memory=True)
 
     # Initialize model and trainer
-    # model = CustomSegmentation()
-    # model = smp.FPN(
-    #     encoder_name="resnet18",
-    #     encoder_weights=None,
-    #     # encoder_weights="imagenet",
-    #     in_channels=3,
-    #     classes=21,
-    # )
-    model = LSeg(
-        enc_layers=5,
-        dec_layers=5,
-        num_classes=21,
-        initial_filters=64,
-        learn_curvature=False,
-    )
+    model = FPN(backbone='resnet18', num_classes=21, pretrained=False)
     trainer = Trainer(model, device)
 
     # Training loop

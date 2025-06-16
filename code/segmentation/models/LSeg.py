@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.Seg_blocks import *
+from .Seg_blocks import *
 
 class LSeg(nn.Module):
     """ Implementation of a fully hyperbolic segmentation model.

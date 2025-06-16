@@ -119,7 +119,7 @@ class H_Decoder(nn.Module):
 
 
     def forward(self, features):
-        for i, feature in enumerate(features[::-1]):
+        for i, feature in enumerate(features):
             if i == 0:
                 x = self.conv_layers[i](feature)
             else:
