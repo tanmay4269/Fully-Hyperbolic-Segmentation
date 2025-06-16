@@ -190,12 +190,19 @@ def main():
 
     # Initialize model and trainer
     # model = CustomSegmentation()
-    model = smp.FPN(
-        encoder_name="resnet18",
-        encoder_weights=None,
-        # encoder_weights="imagenet",
-        in_channels=3,
-        classes=21,
+    # model = smp.FPN(
+    #     encoder_name="resnet18",
+    #     encoder_weights=None,
+    #     # encoder_weights="imagenet",
+    #     in_channels=3,
+    #     classes=21,
+    # )
+    model = LSeg(
+        enc_layers=5,
+        dec_layers=5,
+        num_classes=21,
+        initial_filters=64,
+        learn_curvature=False,
     )
     trainer = Trainer(model, device)
 
