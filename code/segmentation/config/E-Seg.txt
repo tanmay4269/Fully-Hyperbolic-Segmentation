@@ -13,7 +13,7 @@ seed = 42
 # General training hyperparameters
 num_epochs = 70
 batch_size = 8
-lr = 1e-3
+lr = 1e-2
 weight_decay = 0
 optimizer = Adam
 use_lr_scheduler = True

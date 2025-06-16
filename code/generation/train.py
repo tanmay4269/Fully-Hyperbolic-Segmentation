@@ -33,6 +33,7 @@ def getArguments():
     """ Parses command-line options. """
     parser = configargparse.ArgumentParser(description='VAE training', add_help=True)
 
+    parser.add_argument('--debug', action='store_true', help="Debug mode.")
     parser.add_argument('-c', '--config_file', required=False, default=None, is_config_file=True, type=str, 
                         help="Path to config file.")
 
@@ -177,6 +178,9 @@ def main(args):
                 log_kl_loss.update(torch.mean(kl_loss).detach().item())
 
             global_step += 1
+
+            if args.debug:
+                break
             # ------- End iteration -------
 
         # ------- Start validation and logging -------
@@ -191,7 +195,7 @@ def main(args):
             }
 
             # Validation
-            metrics_dict_val = evaluate(model, val_loader, device)
+            metrics_dict_val = evaluate(model, val_loader, device, enable_debug=args.debug)
             if args.calc_fid_val:
                 if ((epoch+1)%args.calc_fid_val_epoch_step)==0 or epoch==(args.num_epochs-1):
                     print("Computing validation FID...")
@@ -240,7 +244,7 @@ def test(model, dataloader_val, dataloader_test, img_dim, device, args):
     print("Testing: {}".format(metric_string))
 
 @torch.no_grad()
-def evaluate(model, dataloader, device):
+def evaluate(model, dataloader, device, enable_debug=False):
     """ Evaluates model performance using Losses """
     model.eval()
     model.to(device)
@@ -248,6 +252,7 @@ def evaluate(model, dataloader, device):
     loss_sum = torch.zeros(1, device=device)
     loss_rec_sum = torch.zeros(1, device=device)
     loss_kl_sum = torch.zeros(1, device=device)
+    iters = 0
 
     for x,_ in dataloader:
         x = x.to(device)
@@ -261,9 +266,14 @@ def evaluate(model, dataloader, device):
         loss_rec_sum += rec_loss.sum().item()
         loss_kl_sum += kl_loss.sum().item()
 
-    avg_loss = loss_sum/len(dataloader.dataset)
-    avg_rec_loss = loss_rec_sum/len(dataloader.dataset)
-    avg_kl_loss = loss_kl_sum/len(dataloader.dataset)
+        iters += 1
+
+        if enable_debug:
+            break
+
+    avg_loss = loss_sum/iters
+    avg_rec_loss = loss_rec_sum/iters
+    avg_kl_loss = loss_kl_sum/iters
 
     metrics_dict = {
         'Loss' : avg_loss.item(),

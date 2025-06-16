@@ -176,16 +176,16 @@ def select_dataset(args):
         batch_size=args.batch_size, 
         num_workers=8, 
         pin_memory=True, 
-        shuffle=True,
+        shuffle=not args.debug,
         drop_last=(args.dataset=='CelebA')
     )
-    val_loader = DataLoader(val_set, 
+    val_loader = DataLoader(val_set if not args.debug else train_set, 
         batch_size=args.batch_size_test, 
         num_workers=8, 
         pin_memory=True, 
         shuffle=False
     )
-    test_loader = DataLoader(test_set, 
+    test_loader = DataLoader(test_set if not args.debug else train_set, 
         batch_size=args.batch_size_test, 
         num_workers=8, 
         pin_memory=True, 

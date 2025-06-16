@@ -50,8 +50,11 @@ class E_Encoder(nn.Module):
             ))
 
     def forward(self, x):
-        x = self.conv_layers(x)
-        return x
+        features = []
+        for layer in self.conv_layers:
+            x = layer(x)
+            features.append(x)
+        return features
 
 class E_Decoder(nn.Module):
     """ Implementation of a convolutional decoder for image prediction.
@@ -65,7 +68,6 @@ class E_Decoder(nn.Module):
         out_dim,
     ):
         super(E_Decoder, self).__init__()
-        self.pred_dim = 64
 
         # Layers
         self.conv_layers = Sequential()
@@ -85,7 +87,7 @@ class E_Decoder(nn.Module):
         
         self.conv_layers.add_module("FinalConv", Conv2d_Block(
             in_channels=int(initial_filters/2**(num_layers-1)), 
-            out_channels=self.pred_dim, 
+            out_channels=out_dim, 
             kernel_size=3, 
             stride=1, 
             padding=1, 
@@ -94,10 +96,10 @@ class E_Decoder(nn.Module):
             normalization="batch_norm"
         ))
 
-        self.predictor = nn.Conv2d(in_channels=self.pred_dim, out_channels=out_dim, kernel_size=1, bias=True)
-        
-    def forward(self, x):
-        x = self.conv_layers(x)
-        x = self.predictor(x)
-        x = torch.sigmoid(x)
+    def forward(self, features):
+        for i, feature in enumerate(features[::-1]):
+            if i == 0:
+                x = self.conv_layers[i](feature)
+            else:
+                x = self.conv_layers[i](x + feature)
         return x

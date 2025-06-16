@@ -43,7 +43,7 @@ def load_model_checkpoint(model, checkpoint_path):
 def select_model(out_dim, args):
     """ Selects and sets up an available model and returns it. """
 
-    if args.debug:
+    if False and args.debug:
         print("[Debug] Loading smp.Unet instead of your model choice")
         import segmentation_models_pytorch as smp
  
@@ -113,7 +113,7 @@ def select_dataset(args):
         ])
 
         train_set = VOCSegmentation(
-            'data',
+            'data/pascal_voc',
             image_set='train',
             # download=True,
             transform=train_transform,
@@ -121,7 +121,7 @@ def select_dataset(args):
         )
 
         full_val = VOCSegmentation(
-            'data',
+            'data/pascal_voc',
             image_set='val',
             # download=True,
             transform=val_transform,
