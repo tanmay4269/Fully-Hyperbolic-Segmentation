@@ -235,9 +235,9 @@ def select_dataset(args, validation_split=False):
         batch_size=args.batch_size, 
         num_workers=8, 
         pin_memory=True, 
-        shuffle=True
+        shuffle=not args.debug
     )
-    test_loader = DataLoader(test_set, 
+    test_loader = DataLoader(test_set if not args.debug else train_set, 
         batch_size=args.batch_size_test, 
         num_workers=8, 
         pin_memory=True, 
@@ -245,7 +245,7 @@ def select_dataset(args, validation_split=False):
     ) 
     
     if validation_split:
-        val_loader = DataLoader(val_set, 
+        val_loader = DataLoader(val_set if not args.debug else train_set, 
             batch_size=args.batch_size_test, 
             num_workers=8, 
             pin_memory=True, 

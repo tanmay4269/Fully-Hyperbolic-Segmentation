@@ -5,12 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Current File with Arguments",
+            "name": "Segmentation E-Seg",
             "type": "debugpy",
             "request": "launch",
             "program": "segmentation/train.py",
             "console": "integratedTerminal",
-            "args": "-c segmentation/config/E-Seg.txt"
+            "args": "-c segmentation/config/E-Seg.txt --debug"
+        },
+        {
+            "name": "Custom Segmentation",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "custom_segmentation.py",
+            "console": "integratedTerminal",
+            "args": "",
+            "justMyCode": false
         }
     ]
 }

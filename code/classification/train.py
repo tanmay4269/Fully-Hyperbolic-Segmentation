@@ -27,6 +27,8 @@ def getArguments():
     """ Parses command-line options. """
     parser = configargparse.ArgumentParser(description='Image classification training', add_help=True)
 
+    parser.add_argument('--debug', action='store_true',
+                        help="Debug mode.")
     parser.add_argument('-c', '--config_file', required=False, default=None, is_config_file=True, type=str,
                         help="Path to config file.")
 
@@ -169,6 +171,10 @@ def main(args):
                 acc5.update(top5.item())
 
             global_step += 1
+
+            if args.debug:
+                break
+
             # ------- End iteration -------
 
         # ------- Start validation and logging -------
@@ -180,7 +186,7 @@ def main(args):
 
                 lr_scheduler.step()
 
-            loss_val, acc1_val, acc5_val = evaluate(model, val_loader, criterion, device)
+            loss_val, acc1_val, acc5_val = evaluate(model, val_loader, criterion, device, args)
 
             print(
                 "Epoch {}/{}: Loss={:.4f}, Acc@1={:.4f}, Acc@5={:.4f}, Validation: Loss={:.4f}, Acc@1={:.4f}, Acc@5={:.4f}".format(
@@ -239,7 +245,7 @@ def main(args):
 
 
 @torch.no_grad()
-def evaluate(model, dataloader, criterion, device):
+def evaluate(model, dataloader, criterion, device, args):
     """ Evaluates model performance """
     model.eval()
     model.to(device)
@@ -260,6 +266,9 @@ def evaluate(model, dataloader, criterion, device):
         losses.update(loss.item())
         acc1.update(top1.item(), x.shape[0])
         acc5.update(top5.item(), x.shape[0])
+
+        if args.debug:
+            break
 
     return losses.avg, acc1.avg, acc5.avg 
 
