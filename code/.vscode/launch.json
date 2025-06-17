@@ -16,7 +16,7 @@
             "name": "Custom Segmentation",
             "type": "debugpy",
             "request": "launch",
-            "program": "custom_segmentation.py",
+            "program": "custom_seg_trainer.py",
             "console": "integratedTerminal",
             "args": "",
             "justMyCode": false

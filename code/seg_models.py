@@ -116,11 +116,18 @@ class HyperbolicFPN(nn.Module):
         # Final classifier
         self.classifier = LorentzMLR(self.manifold, self.fpn_channels, num_classes)
     
-    def upsample_bhwc(self, x, scale_factor=2):
+    def upsample_bhwc(self, x, size=None, scale_factor=None):
         B, H, W, C = x.shape
+
+        if size is not None:
+            scale_factor = (int(size[0]/H), int(size[1]/W))
+            
+        if scale_factor is not None and isinstance(scale_factor, int):
+            scale_factor = (scale_factor, scale_factor)
+        
         x = x.view(B, H, 1, W, 1, C)
-        x = x.expand(B, H, scale_factor, W, scale_factor, C)
-        x = x.reshape(B, H * scale_factor, W * scale_factor, C)
+        x = x.expand(B, H, scale_factor[0], W, scale_factor[1], C)
+        x = x.reshape(B, H * scale_factor[0], W * scale_factor[1], C)
         return x
 
     def hyperbolic_bilinear_upsampling_fast(self, x, size=None, scale_factor=None):
@@ -158,9 +165,9 @@ class HyperbolicFPN(nn.Module):
         # Build FPN
         # Top-down pathway
         p4 = self.lateral4(c4)
-        p3 = self.lateral3(c3) + self.upsample_bhwc(p4)
-        p2 = self.lateral2(c2) + self.upsample_bhwc(p3)
-        p1 = self.lateral1(c1) + self.upsample_bhwc(p2)
+        p3 = self.lateral3(c3) + self.upsample_bhwc(p4, scale_factor=2)
+        p2 = self.lateral2(c2) + self.upsample_bhwc(p3, scale_factor=2)
+        p1 = self.lateral1(c1) + self.upsample_bhwc(p2, scale_factor=2)
         
         p4 = self.fpn4(p4)
         p3 = self.fpn3(p3)
@@ -178,6 +185,9 @@ class HyperbolicFPN(nn.Module):
         p4_up = self.hyperbolic_bilinear_upsampling_fast(p4, size=(h, w))
         p3_up = self.hyperbolic_bilinear_upsampling_fast(p3, size=(h, w))
         p2_up = self.hyperbolic_bilinear_upsampling_fast(p2, size=(h, w))
+        # p4_up = self.upsample_bhwc(p4, size=(h, w))
+        # p3_up = self.upsample_bhwc(p3, size=(h, w))
+        # p2_up = self.upsample_bhwc(p2, size=(h, w))
         
         # Combine features
         fused = p1 + p2_up + p3_up + p4_up
