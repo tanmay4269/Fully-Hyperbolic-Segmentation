@@ -32,7 +32,7 @@ def get_args():
                       help='Batch size for training')
     parser.add_argument('--num-epochs', type=int, default=200,
                       help='Number of training epochs')
-    parser.add_argument('--lr', type=float, default=1e-4,
+    parser.add_argument('--lr', type=float, default=5e-4,
                       help='Learning rate')
     parser.add_argument('--weight-decay', type=float, default=1e-5,
                       help='Weight decay for optimizer')

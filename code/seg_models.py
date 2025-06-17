@@ -118,6 +118,8 @@ class HyperbolicFPN(nn.Module):
     
     def upsample_bhwc(self, x, size=None, scale_factor=None):
         B, H, W, C = x.shape
+        if size is not None and size[0] == H and size[1] == W:
+            return x
 
         if size is not None:
             scale_factor = (int(size[0]/H), int(size[1]/W))
@@ -135,35 +137,31 @@ class HyperbolicFPN(nn.Module):
         Fastest approximation: use standard bilinear then project back to hyperboloid
         Not geometrically perfect but very efficient and often good enough
         """
+        B, H, W, C = x.shape
+        if size is not None and size[0] == H and size[1] == W:
+            return x
+ 
+        x = x.permute(0,3,1,2)
+
         if size is not None:
             interp = F.interpolate(x, size=size, mode='bilinear', align_corners=False)
         else:
             interp = F.interpolate(x, scale_factor=scale_factor, mode='bilinear', align_corners=False)
         
-        # Project back to hyperboloid by normalizing Lorentz constraint
-        # ||x||_L^2 = -x_0^2 + ||x_1:||^2 = -1
-        
-        # Split time and space components
         x0 = interp[..., 0:1, :, :]  # time component
         x_space = interp[..., 1:, :, :]  # space components
         
-        # Compute space norm
         space_norm_sq = torch.sum(x_space**2, dim=-3, keepdim=True)
-        
-        # Fix time component to satisfy constraint: x_0 = sqrt(1 + ||x_space||^2)
         x0_corrected = torch.sqrt(1 + space_norm_sq)
-        
-        # Reconstruct
         result = torch.cat([x0_corrected, x_space], dim=-3)
         
+        result = result.permute(0,2,3,1)
         return result
 
 
     def forward(self, x):
         c1, c2, c3, c4 = self.backbone(x, return_features=True)
         
-        # Build FPN
-        # Top-down pathway
         p4 = self.lateral4(c4)
         p3 = self.lateral3(c3) + self.upsample_bhwc(p4, scale_factor=2)
         p2 = self.lateral2(c2) + self.upsample_bhwc(p3, scale_factor=2)
@@ -174,26 +172,19 @@ class HyperbolicFPN(nn.Module):
         p2 = self.fpn2(p2)
         p1 = self.fpn1(p1)
         
-        # modularize this
-        p4 = p4.permute(0,3,1,2)
-        p3 = p3.permute(0,3,1,2)
-        p2 = p2.permute(0,3,1,2)
-        p1 = p1.permute(0,3,1,2)
+        _, h, w, _ = p1.shape
+        p4 = self.hyperbolic_bilinear_upsampling_fast(p4, size=(h, w))
+        p3 = self.hyperbolic_bilinear_upsampling_fast(p3, size=(h, w))
+        p2 = self.hyperbolic_bilinear_upsampling_fast(p2, size=(h, w))
         
-        # Upsample all to same size and add
-        _, _, h, w = p1.shape
-        p4_up = self.hyperbolic_bilinear_upsampling_fast(p4, size=(h, w))
-        p3_up = self.hyperbolic_bilinear_upsampling_fast(p3, size=(h, w))
-        p2_up = self.hyperbolic_bilinear_upsampling_fast(p2, size=(h, w))
-        # p4_up = self.upsample_bhwc(p4, size=(h, w))
-        # p3_up = self.upsample_bhwc(p3, size=(h, w))
-        # p2_up = self.upsample_bhwc(p2, size=(h, w))
+        # p4 = self.upsample_bhwc(p4, size=(h, w))
+        # p3 = self.upsample_bhwc(p3, size=(h, w))
+        # p2 = self.upsample_bhwc(p2, size=(h, w))
         
         # Combine features
-        fused = p1 + p2_up + p3_up + p4_up
+        fused = p1 + p2 + p3 + p4
         
         # Final classification
-        fused = fused.permute(0,2,3,1)
         out = self.classifier(fused)
         out = out.permute(0,3,1,2)
         
