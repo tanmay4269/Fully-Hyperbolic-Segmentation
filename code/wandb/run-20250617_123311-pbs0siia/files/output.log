@@ -1,0 +1,800 @@
+
+Epoch 1/200
+Training Loss: 3.5289, Training mIoU: 0.0000
+Validation Loss: 1.9405, Validation mIoU: 0.0850
+
+Epoch 2/200
+Training Loss: 1.9661, Training mIoU: 0.0850
+Validation Loss: 1.5356, Validation mIoU: 0.0850
+
+Epoch 3/200
+Training Loss: 1.5453, Training mIoU: 0.0850
+Validation Loss: 1.3218, Validation mIoU: 0.0850
+
+Epoch 4/200
+Training Loss: 1.2550, Training mIoU: 0.0850
+Validation Loss: 1.2232, Validation mIoU: 0.0850
+
+Epoch 5/200
+Training Loss: 1.0914, Training mIoU: 0.0850
+Validation Loss: 1.1599, Validation mIoU: 0.0850
+
+Epoch 6/200
+Training Loss: 0.9984, Training mIoU: 0.0850
+Validation Loss: 1.1070, Validation mIoU: 0.0850
+
+Epoch 7/200
+Training Loss: 0.9387, Training mIoU: 0.0850
+Validation Loss: 1.0705, Validation mIoU: 0.0850
+
+Epoch 8/200
+Training Loss: 0.8603, Training mIoU: 0.0850
+Validation Loss: 1.0476, Validation mIoU: 0.0850
+
+Epoch 9/200
+Training Loss: 0.7983, Training mIoU: 0.0850
+Validation Loss: 1.0392, Validation mIoU: 0.0850
+
+Epoch 10/200
+Training Loss: 0.7489, Training mIoU: 0.0850
+Validation Loss: 1.0517, Validation mIoU: 0.0850
+
+Epoch 11/200
+Training Loss: 0.6987, Training mIoU: 0.0850
+Validation Loss: 1.0762, Validation mIoU: 0.0850
+
+Epoch 12/200
+Training Loss: 0.6641, Training mIoU: 0.0850
+Validation Loss: 1.0733, Validation mIoU: 0.0850
+
+Epoch 13/200
+Training Loss: 0.6327, Training mIoU: 0.0865
+Validation Loss: 1.0335, Validation mIoU: 0.0850
+
+Epoch 14/200
+Training Loss: 0.5962, Training mIoU: 0.1027
+Validation Loss: 0.9785, Validation mIoU: 0.0850
+
+Epoch 15/200
+Training Loss: 0.5568, Training mIoU: 0.1211
+Validation Loss: 0.9447, Validation mIoU: 0.0850
+
+Epoch 16/200
+Training Loss: 0.5364, Training mIoU: 0.1356
+Validation Loss: 0.9266, Validation mIoU: 0.0850
+
+Epoch 17/200
+Training Loss: 0.5177, Training mIoU: 0.1423
+Validation Loss: 0.9206, Validation mIoU: 0.0850
+
+Epoch 18/200
+Training Loss: 0.5031, Training mIoU: 0.1461
+Validation Loss: 0.8429, Validation mIoU: 0.0850
+
+Epoch 19/200
+Training Loss: 0.4858, Training mIoU: 0.1551
+Validation Loss: 0.7580, Validation mIoU: 0.0850
+
+Epoch 20/200
+Training Loss: 0.4681, Training mIoU: 0.1591
+Validation Loss: 0.7091, Validation mIoU: 0.0993
+
+Epoch 21/200
+Training Loss: 0.4515, Training mIoU: 0.1606
+Validation Loss: 0.6439, Validation mIoU: 0.1308
+
+Epoch 22/200
+Training Loss: 0.4326, Training mIoU: 0.1620
+Validation Loss: 0.5903, Validation mIoU: 0.1467
+
+Epoch 23/200
+Training Loss: 0.4211, Training mIoU: 0.1674
+Validation Loss: 0.5383, Validation mIoU: 0.1518
+
+Epoch 24/200
+Training Loss: 0.4084, Training mIoU: 0.1778
+Validation Loss: 0.4763, Validation mIoU: 0.1619
+
+Epoch 25/200
+Training Loss: 0.3950, Training mIoU: 0.1904
+Validation Loss: 0.4824, Validation mIoU: 0.1553
+
+Epoch 26/200
+Training Loss: 0.3874, Training mIoU: 0.1983
+Validation Loss: 0.4713, Validation mIoU: 0.1630
+
+Epoch 27/200
+Training Loss: 0.3794, Training mIoU: 0.2182
+Validation Loss: 0.4747, Validation mIoU: 0.1626
+
+Epoch 28/200
+Training Loss: 0.3892, Training mIoU: 0.1986
+Validation Loss: 0.5982, Validation mIoU: 0.1686
+
+Epoch 29/200
+Training Loss: 0.3629, Training mIoU: 0.2381
+Validation Loss: 0.5898, Validation mIoU: 0.1706
+
+Epoch 30/200
+Training Loss: 0.3570, Training mIoU: 0.2879
+Validation Loss: 0.5647, Validation mIoU: 0.1715
+
+Epoch 31/200
+Training Loss: 0.3484, Training mIoU: 0.2844
+Validation Loss: 0.5602, Validation mIoU: 0.1749
+
+Epoch 32/200
+Training Loss: 0.3379, Training mIoU: 0.2682
+Validation Loss: 0.5898, Validation mIoU: 0.1830
+
+Epoch 33/200
+Training Loss: 0.3259, Training mIoU: 0.3057
+Validation Loss: 0.5498, Validation mIoU: 0.2015
+
+Epoch 34/200
+Training Loss: 0.3153, Training mIoU: 0.3356
+Validation Loss: 0.3658, Validation mIoU: 0.2542
+
+Epoch 35/200
+Training Loss: 0.3041, Training mIoU: 0.3431
+Validation Loss: 0.3010, Validation mIoU: 0.3235
+
+Epoch 36/200
+Training Loss: 0.2956, Training mIoU: 0.3388
+Validation Loss: 0.2876, Validation mIoU: 0.3326
+
+Epoch 37/200
+Training Loss: 0.2875, Training mIoU: 0.3414
+Validation Loss: 0.2857, Validation mIoU: 0.3340
+
+Epoch 38/200
+Training Loss: 0.2786, Training mIoU: 0.3482
+Validation Loss: 0.2970, Validation mIoU: 0.3251
+
+Epoch 39/200
+Training Loss: 0.2716, Training mIoU: 0.3502
+Validation Loss: 0.2968, Validation mIoU: 0.3242
+
+Epoch 40/200
+Training Loss: 0.2636, Training mIoU: 0.3601
+Validation Loss: 0.2914, Validation mIoU: 0.3242
+
+Epoch 41/200
+Training Loss: 0.2583, Training mIoU: 0.3598
+Validation Loss: 0.2612, Validation mIoU: 0.3476
+
+Epoch 42/200
+Training Loss: 0.2506, Training mIoU: 0.3617
+Validation Loss: 0.2688, Validation mIoU: 0.3366
+
+Epoch 43/200
+Training Loss: 0.2453, Training mIoU: 0.3608
+Validation Loss: 0.2522, Validation mIoU: 0.3537
+
+Epoch 44/200
+Training Loss: 0.2389, Training mIoU: 0.3624
+Validation Loss: 0.2733, Validation mIoU: 0.3343
+
+Epoch 45/200
+Training Loss: 0.2434, Training mIoU: 0.3568
+Validation Loss: 0.2483, Validation mIoU: 0.3614
+
+Epoch 46/200
+Training Loss: 0.2293, Training mIoU: 0.3706
+Validation Loss: 0.2829, Validation mIoU: 0.3414
+
+Epoch 47/200
+Training Loss: 0.2304, Training mIoU: 0.3661
+Validation Loss: 0.2309, Validation mIoU: 0.3641
+
+Epoch 48/200
+Training Loss: 0.2244, Training mIoU: 0.3654
+Validation Loss: 0.2187, Validation mIoU: 0.3698
+
+Epoch 49/200
+Training Loss: 0.2215, Training mIoU: 0.3683
+Validation Loss: 0.2293, Validation mIoU: 0.3676
+
+Epoch 50/200
+Training Loss: 0.2150, Training mIoU: 0.3806
+Validation Loss: 0.2525, Validation mIoU: 0.3500
+
+Epoch 51/200
+Training Loss: 0.2158, Training mIoU: 0.3725
+Validation Loss: 0.2112, Validation mIoU: 0.3758
+
+Epoch 52/200
+Training Loss: 0.2068, Training mIoU: 0.3774
+Validation Loss: 0.2323, Validation mIoU: 0.3603
+
+Epoch 53/200
+Training Loss: 0.2127, Training mIoU: 0.3705
+Validation Loss: 0.2025, Validation mIoU: 0.3807
+
+Epoch 54/200
+Training Loss: 0.1983, Training mIoU: 0.3824
+Validation Loss: 0.2053, Validation mIoU: 0.3734
+
+Epoch 55/200
+Training Loss: 0.2044, Training mIoU: 0.3725
+Validation Loss: 0.1988, Validation mIoU: 0.3765
+
+Epoch 56/200
+Training Loss: 0.1954, Training mIoU: 0.3806
+Validation Loss: 0.1934, Validation mIoU: 0.3782
+
+Epoch 57/200
+Training Loss: 0.1919, Training mIoU: 0.3825
+Validation Loss: 0.1891, Validation mIoU: 0.3806
+
+Epoch 58/200
+Training Loss: 0.1915, Training mIoU: 0.3833
+Validation Loss: 0.1861, Validation mIoU: 0.3821
+
+Epoch 59/200
+Training Loss: 0.1859, Training mIoU: 0.3844
+Validation Loss: 0.1870, Validation mIoU: 0.3835
+
+Epoch 60/200
+Training Loss: 0.1825, Training mIoU: 0.3860
+Validation Loss: 0.1848, Validation mIoU: 0.3813
+
+Epoch 61/200
+Training Loss: 0.1793, Training mIoU: 0.3853
+Validation Loss: 0.1834, Validation mIoU: 0.3781
+
+Epoch 62/200
+Training Loss: 0.1752, Training mIoU: 0.3847
+Validation Loss: 0.1873, Validation mIoU: 0.3742
+
+Epoch 63/200
+Training Loss: 0.1716, Training mIoU: 0.3864
+Validation Loss: 0.1981, Validation mIoU: 0.3684
+
+Epoch 64/200
+Training Loss: 0.1692, Training mIoU: 0.3870
+Validation Loss: 0.2076, Validation mIoU: 0.3638
+
+Epoch 65/200
+Training Loss: 0.1663, Training mIoU: 0.4031
+Validation Loss: 0.2274, Validation mIoU: 0.3560
+
+Epoch 66/200
+Training Loss: 0.1637, Training mIoU: 0.4072
+Validation Loss: 0.2469, Validation mIoU: 0.3464
+
+Epoch 67/200
+Training Loss: 0.1605, Training mIoU: 0.4173
+Validation Loss: 0.2678, Validation mIoU: 0.3443
+
+Epoch 68/200
+Training Loss: 0.1571, Training mIoU: 0.4473
+Validation Loss: 0.2269, Validation mIoU: 0.3805
+
+Epoch 69/200
+Training Loss: 0.1535, Training mIoU: 0.5052
+Validation Loss: 0.1971, Validation mIoU: 0.4385
+
+Epoch 70/200
+Training Loss: 0.1509, Training mIoU: 0.5424
+Validation Loss: 0.1774, Validation mIoU: 0.4916
+
+Epoch 71/200
+Training Loss: 0.1474, Training mIoU: 0.5833
+Validation Loss: 0.1687, Validation mIoU: 0.5464
+
+Epoch 72/200
+Training Loss: 0.1443, Training mIoU: 0.6056
+Validation Loss: 0.1691, Validation mIoU: 0.5542
+
+Epoch 73/200
+Training Loss: 0.1410, Training mIoU: 0.6056
+Validation Loss: 0.1599, Validation mIoU: 0.5768
+
+Epoch 74/200
+Training Loss: 0.1370, Training mIoU: 0.6099
+Validation Loss: 0.1582, Validation mIoU: 0.5811
+
+Epoch 75/200
+Training Loss: 0.1333, Training mIoU: 0.6145
+Validation Loss: 0.1749, Validation mIoU: 0.5662
+
+Epoch 76/200
+Training Loss: 0.1293, Training mIoU: 0.6185
+Validation Loss: 0.1675, Validation mIoU: 0.5795
+
+Epoch 77/200
+Training Loss: 0.1263, Training mIoU: 0.6212
+Validation Loss: 0.1548, Validation mIoU: 0.5945
+
+Epoch 78/200
+Training Loss: 0.1238, Training mIoU: 0.6226
+Validation Loss: 0.1361, Validation mIoU: 0.6133
+
+Epoch 79/200
+Training Loss: 0.1225, Training mIoU: 0.6270
+Validation Loss: 0.1732, Validation mIoU: 0.5738
+
+Epoch 80/200
+Training Loss: 0.1389, Training mIoU: 0.5987
+Validation Loss: 0.1380, Validation mIoU: 0.6206
+
+Epoch 81/200
+Training Loss: 0.1777, Training mIoU: 0.6035
+Validation Loss: 1.4356, Validation mIoU: 0.3100
+
+Epoch 82/200
+Training Loss: 0.2049, Training mIoU: 0.5842
+Validation Loss: 0.2830, Validation mIoU: 0.4313
+
+Epoch 83/200
+Training Loss: 0.1659, Training mIoU: 0.5571
+Validation Loss: 0.4567, Validation mIoU: 0.2978
+
+Epoch 84/200
+Training Loss: 0.1644, Training mIoU: 0.5546
+Validation Loss: 0.4584, Validation mIoU: 0.2745
+
+Epoch 85/200
+Training Loss: 0.1452, Training mIoU: 0.5888
+Validation Loss: 0.4571, Validation mIoU: 0.2737
+
+Epoch 86/200
+Training Loss: 0.1470, Training mIoU: 0.5980
+Validation Loss: 0.4495, Validation mIoU: 0.2959
+
+Epoch 87/200
+Training Loss: 0.1450, Training mIoU: 0.6112
+Validation Loss: 0.4319, Validation mIoU: 0.3205
+
+Epoch 88/200
+Training Loss: 0.1454, Training mIoU: 0.6131
+Validation Loss: 0.3269, Validation mIoU: 0.3502
+
+Epoch 89/200
+Training Loss: 0.1372, Training mIoU: 0.6226
+Validation Loss: 0.2524, Validation mIoU: 0.4200
+
+Epoch 90/200
+Training Loss: 0.1385, Training mIoU: 0.6182
+Validation Loss: 0.2227, Validation mIoU: 0.4756
+
+Epoch 91/200
+Training Loss: 0.1322, Training mIoU: 0.6262
+Validation Loss: 0.1899, Validation mIoU: 0.5314
+
+Epoch 92/200
+Training Loss: 0.1256, Training mIoU: 0.6348
+Validation Loss: 0.1787, Validation mIoU: 0.5606
+
+Epoch 93/200
+Training Loss: 0.1232, Training mIoU: 0.6503
+Validation Loss: 0.1587, Validation mIoU: 0.5836
+
+Epoch 94/200
+Training Loss: 0.1186, Training mIoU: 0.6565
+Validation Loss: 0.1572, Validation mIoU: 0.5885
+
+Epoch 95/200
+Training Loss: 0.1156, Training mIoU: 0.6568
+Validation Loss: 0.1393, Validation mIoU: 0.6082
+
+Epoch 96/200
+Training Loss: 0.1125, Training mIoU: 0.6599
+Validation Loss: 0.1368, Validation mIoU: 0.6140
+
+Epoch 97/200
+Training Loss: 0.1059, Training mIoU: 0.6797
+Validation Loss: 0.1352, Validation mIoU: 0.6156
+
+Epoch 98/200
+Training Loss: 0.1037, Training mIoU: 0.6859
+Validation Loss: 0.1192, Validation mIoU: 0.6349
+
+Epoch 99/200
+Training Loss: 0.1014, Training mIoU: 0.6970
+Validation Loss: 0.1116, Validation mIoU: 0.6389
+
+Epoch 100/200
+Training Loss: 0.0985, Training mIoU: 0.7018
+Validation Loss: 0.1100, Validation mIoU: 0.6609
+
+Epoch 101/200
+Training Loss: 0.0970, Training mIoU: 0.7000
+Validation Loss: 0.1111, Validation mIoU: 0.6699
+
+Epoch 102/200
+Training Loss: 0.0936, Training mIoU: 0.7062
+Validation Loss: 0.1151, Validation mIoU: 0.6614
+
+Epoch 103/200
+Training Loss: 0.0915, Training mIoU: 0.7076
+Validation Loss: 0.1144, Validation mIoU: 0.6675
+
+Epoch 104/200
+Training Loss: 0.0889, Training mIoU: 0.7091
+Validation Loss: 0.1049, Validation mIoU: 0.6796
+
+Epoch 105/200
+Training Loss: 0.0871, Training mIoU: 0.7143
+Validation Loss: 0.0994, Validation mIoU: 0.7017
+
+Epoch 106/200
+Training Loss: 0.0866, Training mIoU: 0.7179
+Validation Loss: 0.0984, Validation mIoU: 0.7008
+
+Epoch 107/200
+Training Loss: 0.0835, Training mIoU: 0.7217
+Validation Loss: 0.0954, Validation mIoU: 0.7101
+
+Epoch 108/200
+Training Loss: 0.0824, Training mIoU: 0.7239
+Validation Loss: 0.0899, Validation mIoU: 0.7161
+
+Epoch 109/200
+Training Loss: 0.0807, Training mIoU: 0.7259
+Validation Loss: 0.0860, Validation mIoU: 0.7175
+
+Epoch 110/200
+Training Loss: 0.0785, Training mIoU: 0.7281
+Validation Loss: 0.0841, Validation mIoU: 0.7180
+
+Epoch 111/200
+Training Loss: 0.0777, Training mIoU: 0.7289
+Validation Loss: 0.0803, Validation mIoU: 0.7248
+
+Epoch 112/200
+Training Loss: 0.0754, Training mIoU: 0.7334
+Validation Loss: 0.0778, Validation mIoU: 0.7304
+
+Epoch 113/200
+Training Loss: 0.0742, Training mIoU: 0.7355
+Validation Loss: 0.0766, Validation mIoU: 0.7331
+
+Epoch 114/200
+Training Loss: 0.0732, Training mIoU: 0.7377
+Validation Loss: 0.0752, Validation mIoU: 0.7353
+
+Epoch 115/200
+Training Loss: 0.0720, Training mIoU: 0.7393
+Validation Loss: 0.0732, Validation mIoU: 0.7393
+
+Epoch 116/200
+Training Loss: 0.0705, Training mIoU: 0.7428
+Validation Loss: 0.0719, Validation mIoU: 0.7380
+
+Epoch 117/200
+Training Loss: 0.0692, Training mIoU: 0.7443
+Validation Loss: 0.0716, Validation mIoU: 0.7336
+
+Epoch 118/200
+Training Loss: 0.0679, Training mIoU: 0.7425
+Validation Loss: 0.0714, Validation mIoU: 0.7358
+
+Epoch 119/200
+Training Loss: 0.0672, Training mIoU: 0.7449
+Validation Loss: 0.0691, Validation mIoU: 0.7452
+
+Epoch 120/200
+Training Loss: 0.0656, Training mIoU: 0.7514
+Validation Loss: 0.0677, Validation mIoU: 0.7502
+
+Epoch 121/200
+Training Loss: 0.0645, Training mIoU: 0.7558
+Validation Loss: 0.0675, Validation mIoU: 0.7535
+
+Epoch 122/200
+Training Loss: 0.0636, Training mIoU: 0.7589
+Validation Loss: 0.0668, Validation mIoU: 0.7563
+
+Epoch 123/200
+Training Loss: 0.0624, Training mIoU: 0.7660
+Validation Loss: 0.0665, Validation mIoU: 0.7587
+
+Epoch 124/200
+Training Loss: 0.0615, Training mIoU: 0.7699
+Validation Loss: 0.0661, Validation mIoU: 0.7603
+
+Epoch 125/200
+Training Loss: 0.0608, Training mIoU: 0.7727
+Validation Loss: 0.0649, Validation mIoU: 0.7652
+
+Epoch 126/200
+Training Loss: 0.0598, Training mIoU: 0.7773
+Validation Loss: 0.0641, Validation mIoU: 0.7683
+
+Epoch 127/200
+Training Loss: 0.0590, Training mIoU: 0.7816
+Validation Loss: 0.0635, Validation mIoU: 0.7702
+
+Epoch 128/200
+Training Loss: 0.0583, Training mIoU: 0.7830
+Validation Loss: 0.0621, Validation mIoU: 0.7752
+
+Epoch 129/200
+Training Loss: 0.0573, Training mIoU: 0.7867
+Validation Loss: 0.0616, Validation mIoU: 0.7804
+
+Epoch 130/200
+Training Loss: 0.0567, Training mIoU: 0.7900
+Validation Loss: 0.0598, Validation mIoU: 0.7845
+
+Epoch 131/200
+Training Loss: 0.0558, Training mIoU: 0.7928
+Validation Loss: 0.0591, Validation mIoU: 0.7898
+
+Epoch 132/200
+Training Loss: 0.0551, Training mIoU: 0.7978
+Validation Loss: 0.0586, Validation mIoU: 0.7945
+
+Epoch 133/200
+Training Loss: 0.0550, Training mIoU: 0.8033
+Validation Loss: 0.0609, Validation mIoU: 0.7938
+
+Epoch 134/200
+Training Loss: 0.0568, Training mIoU: 0.8027
+Validation Loss: 0.0621, Validation mIoU: 0.8002
+
+Epoch 135/200
+Training Loss: 0.0605, Training mIoU: 0.8067
+Validation Loss: 0.0569, Validation mIoU: 0.8056
+
+Epoch 136/200
+Training Loss: 0.0533, Training mIoU: 0.8107
+Validation Loss: 0.0588, Validation mIoU: 0.8063
+
+Epoch 137/200
+Training Loss: 0.0562, Training mIoU: 0.8085
+Validation Loss: 0.0581, Validation mIoU: 0.8105
+
+Epoch 138/200
+Training Loss: 0.0550, Training mIoU: 0.8180
+Validation Loss: 0.0609, Validation mIoU: 0.8043
+
+Epoch 139/200
+Training Loss: 0.0562, Training mIoU: 0.8156
+Validation Loss: 0.0582, Validation mIoU: 0.7990
+
+Epoch 140/200
+Training Loss: 0.0530, Training mIoU: 0.8097
+Validation Loss: 0.0582, Validation mIoU: 0.7999
+
+Epoch 141/200
+Training Loss: 0.0531, Training mIoU: 0.8096
+Validation Loss: 0.0567, Validation mIoU: 0.8127
+
+Epoch 142/200
+Training Loss: 0.0527, Training mIoU: 0.8170
+Validation Loss: 0.0554, Validation mIoU: 0.8161
+
+Epoch 143/200
+Training Loss: 0.0523, Training mIoU: 0.8221
+Validation Loss: 0.0521, Validation mIoU: 0.8220
+
+Epoch 144/200
+Training Loss: 0.0502, Training mIoU: 0.8236
+Validation Loss: 0.0531, Validation mIoU: 0.8134
+
+Epoch 145/200
+Training Loss: 0.0506, Training mIoU: 0.8169
+Validation Loss: 0.0525, Validation mIoU: 0.8172
+
+Epoch 146/200
+Training Loss: 0.0502, Training mIoU: 0.8187
+Validation Loss: 0.0506, Validation mIoU: 0.8220
+
+Epoch 147/200
+Training Loss: 0.0488, Training mIoU: 0.8271
+Validation Loss: 0.0500, Validation mIoU: 0.8229
+
+Epoch 148/200
+Training Loss: 0.0479, Training mIoU: 0.8294
+Validation Loss: 0.0506, Validation mIoU: 0.8147
+
+Epoch 149/200
+Training Loss: 0.0476, Training mIoU: 0.8191
+Validation Loss: 0.0489, Validation mIoU: 0.8140
+
+Epoch 150/200
+Training Loss: 0.0471, Training mIoU: 0.8191
+Validation Loss: 0.0471, Validation mIoU: 0.8198
+
+Epoch 151/200
+Training Loss: 0.0457, Training mIoU: 0.8217
+Validation Loss: 0.0476, Validation mIoU: 0.8222
+
+Epoch 152/200
+Training Loss: 0.0457, Training mIoU: 0.8248
+Validation Loss: 0.0464, Validation mIoU: 0.8218
+
+Epoch 153/200
+Training Loss: 0.0447, Training mIoU: 0.8270
+Validation Loss: 0.0457, Validation mIoU: 0.8258
+
+Epoch 154/200
+Training Loss: 0.0441, Training mIoU: 0.8287
+Validation Loss: 0.0457, Validation mIoU: 0.8299
+
+Epoch 155/200
+Training Loss: 0.0437, Training mIoU: 0.8318
+Validation Loss: 0.0447, Validation mIoU: 0.8300
+
+Epoch 156/200
+Training Loss: 0.0430, Training mIoU: 0.8319
+Validation Loss: 0.0447, Validation mIoU: 0.8244
+
+Epoch 157/200
+Training Loss: 0.0428, Training mIoU: 0.8309
+Validation Loss: 0.0440, Validation mIoU: 0.8173
+
+Epoch 158/200
+Training Loss: 0.0427, Training mIoU: 0.8198
+Validation Loss: 0.0433, Validation mIoU: 0.8210
+
+Epoch 159/200
+Training Loss: 0.0416, Training mIoU: 0.8290
+Validation Loss: 0.0432, Validation mIoU: 0.8285
+
+Epoch 160/200
+Training Loss: 0.0417, Training mIoU: 0.8342
+Validation Loss: 0.0422, Validation mIoU: 0.8359
+
+Epoch 161/200
+Training Loss: 0.0414, Training mIoU: 0.8367
+Validation Loss: 0.0416, Validation mIoU: 0.8360
+
+Epoch 162/200
+Training Loss: 0.0409, Training mIoU: 0.8354
+Validation Loss: 0.0414, Validation mIoU: 0.8336
+
+Epoch 163/200
+Training Loss: 0.0402, Training mIoU: 0.8331
+Validation Loss: 0.0406, Validation mIoU: 0.8354
+
+Epoch 164/200
+Training Loss: 0.0396, Training mIoU: 0.8367
+Validation Loss: 0.0401, Validation mIoU: 0.8376
+
+Epoch 165/200
+Training Loss: 0.0392, Training mIoU: 0.8380
+Validation Loss: 0.0397, Validation mIoU: 0.8421
+
+Epoch 166/200
+Training Loss: 0.0387, Training mIoU: 0.8416
+Validation Loss: 0.0394, Validation mIoU: 0.8420
+
+Epoch 167/200
+Training Loss: 0.0384, Training mIoU: 0.8460
+Validation Loss: 0.0387, Validation mIoU: 0.8380
+
+Epoch 168/200
+Training Loss: 0.0379, Training mIoU: 0.8408
+Validation Loss: 0.0383, Validation mIoU: 0.8413
+
+Epoch 169/200
+Training Loss: 0.0375, Training mIoU: 0.8415
+Validation Loss: 0.0383, Validation mIoU: 0.8489
+
+Epoch 170/200
+Training Loss: 0.0372, Training mIoU: 0.8485
+Validation Loss: 0.0381, Validation mIoU: 0.8569
+
+Epoch 171/200
+Training Loss: 0.0368, Training mIoU: 0.8562
+Validation Loss: 0.0377, Validation mIoU: 0.8468
+
+Epoch 172/200
+Training Loss: 0.0363, Training mIoU: 0.8480
+Validation Loss: 0.0371, Validation mIoU: 0.8476
+
+Epoch 173/200
+Training Loss: 0.0360, Training mIoU: 0.8474
+Validation Loss: 0.0364, Validation mIoU: 0.8497
+
+Epoch 174/200
+Training Loss: 0.0355, Training mIoU: 0.8500
+Validation Loss: 0.0363, Validation mIoU: 0.8536
+
+Epoch 175/200
+Training Loss: 0.0356, Training mIoU: 0.8525
+Validation Loss: 0.0362, Validation mIoU: 0.8429
+
+Epoch 176/200
+Training Loss: 0.0353, Training mIoU: 0.8430
+Validation Loss: 0.0360, Validation mIoU: 0.8435
+
+Epoch 177/200
+Training Loss: 0.0350, Training mIoU: 0.8449
+Validation Loss: 0.0356, Validation mIoU: 0.8571
+
+Epoch 178/200
+Training Loss: 0.0345, Training mIoU: 0.8560
+Validation Loss: 0.0355, Validation mIoU: 0.8520
+
+Epoch 179/200
+Training Loss: 0.0343, Training mIoU: 0.8507
+Validation Loss: 0.0351, Validation mIoU: 0.8562
+
+Epoch 180/200
+Training Loss: 0.0338, Training mIoU: 0.8547
+Validation Loss: 0.0355, Validation mIoU: 0.8459
+
+Epoch 181/200
+Training Loss: 0.0351, Training mIoU: 0.8451
+Validation Loss: 0.0352, Validation mIoU: 0.8708
+
+Epoch 182/200
+Training Loss: 0.0348, Training mIoU: 0.8664
+Validation Loss: 0.0409, Validation mIoU: 0.8435
+
+Epoch 183/200
+Training Loss: 0.0408, Training mIoU: 0.8437
+Validation Loss: 0.0670, Validation mIoU: 0.8474
+
+Epoch 184/200
+Training Loss: 0.0617, Training mIoU: 0.8280
+Validation Loss: 0.0509, Validation mIoU: 0.8359
+
+Epoch 185/200
+Training Loss: 0.0428, Training mIoU: 0.8266
+Validation Loss: 0.0519, Validation mIoU: 0.7927
+
+Epoch 186/200
+Training Loss: 0.0452, Training mIoU: 0.8126
+Validation Loss: 0.0432, Validation mIoU: 0.8197
+
+Epoch 187/200
+Training Loss: 0.0400, Training mIoU: 0.8408
+Validation Loss: 0.0454, Validation mIoU: 0.8393
+
+Epoch 188/200
+Training Loss: 0.0419, Training mIoU: 0.8388
+Validation Loss: 0.0462, Validation mIoU: 0.8378
+
+Epoch 189/200
+Training Loss: 0.0409, Training mIoU: 0.8398
+Validation Loss: 0.0441, Validation mIoU: 0.8275
+
+Epoch 190/200
+Training Loss: 0.0415, Training mIoU: 0.8385
+Validation Loss: 0.0423, Validation mIoU: 0.8268
+
+Epoch 191/200
+Training Loss: 0.0398, Training mIoU: 0.8415
+Validation Loss: 0.0449, Validation mIoU: 0.8030
+
+Epoch 192/200
+Training Loss: 0.0404, Training mIoU: 0.8207
+Validation Loss: 0.0464, Validation mIoU: 0.8027
+
+Epoch 193/200
+Training Loss: 0.0398, Training mIoU: 0.8232
+Validation Loss: 0.0432, Validation mIoU: 0.8388
+
+Epoch 194/200
+Training Loss: 0.0378, Training mIoU: 0.8520
+Validation Loss: 0.0397, Validation mIoU: 0.8577
+
+Epoch 195/200
+Training Loss: 0.0364, Training mIoU: 0.8508
+Validation Loss: 0.0410, Validation mIoU: 0.8564
+
+Epoch 196/200
+Training Loss: 0.0371, Training mIoU: 0.8474
+Validation Loss: 0.0405, Validation mIoU: 0.8912
+
+Epoch 197/200
+Training Loss: 0.0358, Training mIoU: 0.8844
+Validation Loss: 0.0384, Validation mIoU: 0.9003
+
+Epoch 198/200
+Training Loss: 0.0354, Training mIoU: 0.8880
+Validation Loss: 0.0358, Validation mIoU: 0.8822
+
+Epoch 199/200
+Training Loss: 0.0347, Training mIoU: 0.8528
+Validation Loss: 0.0340, Validation mIoU: 0.8651
+
+Epoch 200/200
+Training Loss: 0.0345, Training mIoU: 0.8432
+Validation Loss: 0.0340, Validation mIoU: 0.8920

@@ -1,0 +1,16 @@
+{"time":"2025-06-17T12:39:01.940932945+05:30","level":"INFO","msg":"stream: starting","core version":"0.20.1","symlink path":"/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/wandb/run-20250617_123901-fafz7jjr/logs/debug-core.log"}
+{"time":"2025-06-17T12:39:02.411628918+05:30","level":"INFO","msg":"stream: created new stream","id":"fafz7jjr"}
+{"time":"2025-06-17T12:39:02.411663543+05:30","level":"INFO","msg":"stream: started","id":"fafz7jjr"}
+{"time":"2025-06-17T12:39:02.411723115+05:30","level":"INFO","msg":"writer: Do: started","stream_id":"fafz7jjr"}
+{"time":"2025-06-17T12:39:02.411810228+05:30","level":"INFO","msg":"handler: started","stream_id":"fafz7jjr"}
+{"time":"2025-06-17T12:39:02.411781955+05:30","level":"INFO","msg":"sender: started","stream_id":"fafz7jjr"}
+{"time":"2025-06-17T12:39:02.749782119+05:30","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-06-17T12:40:47.871646825+05:30","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-06-17T12:40:47.871732005+05:30","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-06-17T12:40:48.874655019+05:30","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"uploading output.log","runtime_seconds":0.351452024,"progress":"21.2KB/21.2KB"},{"desc":"uploading wandb-summary.json","runtime_seconds":0.35141789,"progress":"278B/278B"},{"desc":"uploading history steps 344-399, summary, console lines 690-799","runtime_seconds":0.329203216},{"desc":"uploading config.yaml","runtime_seconds":0.066121983,"progress":"972B/972B"}],"total_operations":4}}
+{"time":"2025-06-17T12:40:49.230745969+05:30","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-06-17T12:40:49.662424911+05:30","level":"INFO","msg":"stream: closing","id":"fafz7jjr"}
+{"time":"2025-06-17T12:40:49.662439939+05:30","level":"INFO","msg":"handler: closed","stream_id":"fafz7jjr"}
+{"time":"2025-06-17T12:40:49.662448906+05:30","level":"INFO","msg":"writer: Close: closed","stream_id":"fafz7jjr"}
+{"time":"2025-06-17T12:40:49.662505602+05:30","level":"INFO","msg":"sender: closed","stream_id":"fafz7jjr"}
+{"time":"2025-06-17T12:40:49.6625634+05:30","level":"INFO","msg":"stream: closed","id":"fafz7jjr"}

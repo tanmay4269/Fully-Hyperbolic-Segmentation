@@ -1,0 +1,46 @@
+
+Epoch 1/200
+Traceback (most recent call last):
+  File "custom_seg_trainer.py", line 307, in <module>
+    main()
+  File "custom_seg_trainer.py", line 265, in main
+    train_loss, train_iou = trainer.train_epoch(train_loader)
+  File "custom_seg_trainer.py", line 120, in train_epoch
+    outputs = self.model(images)
+  File "/home/tvg/miniconda3/envs/HCNN/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/seg_models.py", line 163, in forward
+    c1, c2, c3, c4 = self.backbone(x, return_features=True)
+  File "/home/tvg/miniconda3/envs/HCNN/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/models/resnet.py", line 59, in forward
+    out_2 = self.conv3_x(out_1)
+  File "/home/tvg/miniconda3/envs/HCNN/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/tvg/miniconda3/envs/HCNN/lib/python3.8/site-packages/torch/nn/modules/container.py", line 217, in forward
+    input = module(input)
+  File "/home/tvg/miniconda3/envs/HCNN/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/lorentz/blocks/resnet_blocks.py", line 124, in forward
+    out = self.conv(x)
+  File "/home/tvg/miniconda3/envs/HCNN/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/tvg/miniconda3/envs/HCNN/lib/python3.8/site-packages/torch/nn/modules/container.py", line 217, in forward
+    input = module(input)
+  File "/home/tvg/miniconda3/envs/HCNN/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1501, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/lorentz/layers/LBnorm.py", line 94, in forward
+    x = super(LorentzBatchNorm2d, self).forward(x, momentum)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/lorentz/layers/LBnorm.py", line 55, in forward
+    running_mean = self.manifold.expmap0(self.running_mean)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/geoopt/manifolds/lorentz/__init__.py", line 105, in expmap0
+    res = math.expmap0(u, k=self.k, dim=dim)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/geoopt/manifolds/lorentz/math.py", line 347, in expmap0
+    return _expmap0(u, k, dim=dim)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/geoopt/manifolds/lorentz/math.py", line 352, in _expmap0
+    nomin = _norm(u, keepdim=True, dim=dim)
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/geoopt/manifolds/lorentz/math.py", line 283, in _norm
+    return torch.sqrt(torch.clamp_min(_inner(u, u, keepdim=keepdim), 1e-8))
+  File "/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/lib/geoopt/manifolds/lorentz/math.py", line 47, in _inner
+    return torch.cat((-uv.narrow(dim, 0, 1), uv.narrow(dim, 1, d)), dim=dim).sum(
+KeyboardInterrupt

@@ -1,6 +1,7 @@
 import os
 import argparse
 from tqdm import tqdm
+import wandb
 
 import torch
 import torch.nn as nn
@@ -53,6 +54,16 @@ def get_args():
     parser.add_argument('--checkpoint-dir', type=str, default='checkpoints',
                       help='Directory to save model checkpoints')
     
+    # Wandb parameters
+    parser.add_argument('--wandb-project', type=str, default='fully-hyperbolic-segmentation',
+                      help='Weights & Biases project name')
+    parser.add_argument('--wandb-entity', type=str, default=None,
+                      help='Weights & Biases entity (username or team name)')
+    parser.add_argument('--wandb-name', type=str, default=None,
+                      help='Name of the run (optional)')
+    parser.add_argument('--no-wandb', action='store_true',
+                      help='Disable Weights & Biases logging')
+    
     args = parser.parse_args()
     return args
 
@@ -74,6 +85,7 @@ class Trainer:
         self.num_classes = args.num_classes
         self.use_hyperbolic = args.model_type == 'hyperbolic'
         self.debug = args.debug
+        self.use_wandb = not args.no_wandb
         
         if self.use_hyperbolic:
             self.optimizer = RiemannianAdam(model.parameters(), 
@@ -100,8 +112,7 @@ class Trainer:
         total_loss = 0
         self.train_iou.reset()
         
-        # for images, masks in tqdm(dataloader, desc="Training", disable=not self.debug):
-        for images, masks in dataloader:
+        for batch_idx, (images, masks) in enumerate(dataloader):
             images = images.to(self.device)
             masks = masks.to(self.device)
             
@@ -117,6 +128,12 @@ class Trainer:
             
             total_loss += loss.item()
             
+            # Log batch metrics
+            if self.use_wandb and batch_idx % 10 == 0:  # Log every 10 batches
+                wandb.log({
+                    'batch/train_loss': loss.item(),
+                })
+            
             if self.debug:
                 break
         
@@ -131,7 +148,6 @@ class Trainer:
         self.val_iou.reset()
         
         with torch.no_grad():
-            # for images, masks in tqdm(dataloader, desc="Validation", disable=not self.debug):
             for images, masks in dataloader:
                 images = images.to(self.device)
                 masks = masks.to(self.device)
@@ -164,6 +180,15 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     print(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
+
+    # Initialize wandb
+    if not args.no_wandb:
+        wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            name=args.wandb_name,
+            config=vars(args)
+        )
 
     # Create checkpoint directory if needed
     if args.save_model:
@@ -243,19 +268,40 @@ def main():
         print(f"Training Loss: {train_loss:.4f}, Training mIoU: {train_iou:.4f}")
         print(f"Validation Loss: {val_loss:.4f}, Validation mIoU: {val_iou:.4f}")
         
+        # Log metrics to wandb
+        if not args.no_wandb:
+            wandb.log({
+                'epoch': epoch + 1,
+                'train/loss': train_loss,
+                'train/mIoU': train_iou,
+                'val/loss': val_loss,
+                'val/mIoU': val_iou,
+            })
+        
         # Save best model based on IoU
         if args.save_model and val_iou > best_val_iou:
             best_val_iou = val_iou
             checkpoint_path = os.path.join(args.checkpoint_dir, 'best_model.pth')
-            torch.save({
+            checkpoint = {
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': trainer.optimizer.state_dict(),
                 'val_loss': val_loss,
                 'val_iou': val_iou,
                 'args': args,
-            }, checkpoint_path)
+            }
+            torch.save(checkpoint, checkpoint_path)
             print(f"Saved best model checkpoint to {checkpoint_path} (best IoU)")
+            
+            # Log best model to wandb
+            if not args.no_wandb:
+                wandb.save(checkpoint_path)
+                wandb.run.summary['best_val_iou'] = best_val_iou
+                wandb.run.summary['best_epoch'] = epoch + 1
+
+    # Close wandb run
+    if not args.no_wandb:
+        wandb.finish()
 
 if __name__ == "__main__":
     main() 

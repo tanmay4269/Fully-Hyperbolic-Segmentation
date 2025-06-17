@@ -115,12 +115,21 @@ class HyperbolicFPN(nn.Module):
         
         # Final classifier
         self.classifier = LorentzMLR(self.manifold, self.fpn_channels, num_classes)
-    
-    def upsample_bhwc(self, x, size=None, scale_factor=None):
+        
+    def interpolate(self, x, size=None, scale_factor=None, method='bilinear'):
         B, H, W, C = x.shape
         if size is not None and size[0] == H and size[1] == W:
             return x
 
+        if method == 'bilinear':
+            return self.hyperbolic_bilinear_upsampling_fast(x, size, scale_factor)
+        elif method == 'expand':
+            return self.upsample_bhwc(x, size, scale_factor)
+        else:
+            raise ValueError(f"Invalid interpolation method: {method}")
+    
+    def upsample_bhwc(self, x, size=None, scale_factor=None):
+        B, H, W, C = x.shape
         if size is not None:
             scale_factor = (int(size[0]/H), int(size[1]/W))
             
@@ -132,16 +141,13 @@ class HyperbolicFPN(nn.Module):
         x = x.reshape(B, H * scale_factor[0], W * scale_factor[1], C)
         return x
 
-    def hyperbolic_bilinear_upsampling_fast(self, x, size=None, scale_factor=None):
+    def hyperbolic_bilinear_upsampling_fast(self, x, size=None, scale_factor=None, permute=True, permute_out=True):
         """
         Fastest approximation: use standard bilinear then project back to hyperboloid
         Not geometrically perfect but very efficient and often good enough
         """
-        B, H, W, C = x.shape
-        if size is not None and size[0] == H and size[1] == W:
-            return x
- 
-        x = x.permute(0,3,1,2)
+        if permute:
+            x = x.permute(0,3,1,2)
 
         if size is not None:
             interp = F.interpolate(x, size=size, mode='bilinear', align_corners=False)
@@ -155,7 +161,8 @@ class HyperbolicFPN(nn.Module):
         x0_corrected = torch.sqrt(1 + space_norm_sq)
         result = torch.cat([x0_corrected, x_space], dim=-3)
         
-        result = result.permute(0,2,3,1)
+        if permute_out:
+            result = result.permute(0,2,3,1)
         return result
 
 
@@ -163,9 +170,9 @@ class HyperbolicFPN(nn.Module):
         c1, c2, c3, c4 = self.backbone(x, return_features=True)
         
         p4 = self.lateral4(c4)
-        p3 = self.lateral3(c3) + self.upsample_bhwc(p4, scale_factor=2)
-        p2 = self.lateral2(c2) + self.upsample_bhwc(p3, scale_factor=2)
-        p1 = self.lateral1(c1) + self.upsample_bhwc(p2, scale_factor=2)
+        p3 = self.lateral3(c3) + self.interpolate(p4, scale_factor=2, method='expand')
+        p2 = self.lateral2(c2) + self.interpolate(p3, scale_factor=2, method='expand')
+        p1 = self.lateral1(c1) + self.interpolate(p2, scale_factor=2, method='expand')
         
         p4 = self.fpn4(p4)
         p3 = self.fpn3(p3)
@@ -173,22 +180,14 @@ class HyperbolicFPN(nn.Module):
         p1 = self.fpn1(p1)
         
         _, h, w, _ = p1.shape
-        p4 = self.hyperbolic_bilinear_upsampling_fast(p4, size=(h, w))
-        p3 = self.hyperbolic_bilinear_upsampling_fast(p3, size=(h, w))
-        p2 = self.hyperbolic_bilinear_upsampling_fast(p2, size=(h, w))
+        p4 = self.interpolate(p4, size=(h, w), method='bilinear')
+        p3 = self.interpolate(p3, size=(h, w), method='bilinear')
+        p2 = self.interpolate(p2, size=(h, w), method='bilinear')
         
-        # p4 = self.upsample_bhwc(p4, size=(h, w))
-        # p3 = self.upsample_bhwc(p3, size=(h, w))
-        # p2 = self.upsample_bhwc(p2, size=(h, w))
-        
-        # Combine features
         fused = p1 + p2 + p3 + p4
         
-        # Final classification
         out = self.classifier(fused)
         out = out.permute(0,3,1,2)
-        
-        # Upsample to input size
         out = F.interpolate(out, scale_factor=4, mode='bilinear', align_corners=False)
         
         return out

@@ -1,0 +1,15 @@
+{"time":"2025-06-17T12:26:55.338886385+05:30","level":"INFO","msg":"stream: starting","core version":"0.20.1","symlink path":"/home/tvg/Projects/Continual-Learning/CDIL/Hyperbolic-Learning/Fully-Hyperbolic-Segmentation/code/wandb/run-20250617_122655-4xc45ca6/logs/debug-core.log"}
+{"time":"2025-06-17T12:26:55.792358751+05:30","level":"INFO","msg":"stream: created new stream","id":"4xc45ca6"}
+{"time":"2025-06-17T12:26:55.792401822+05:30","level":"INFO","msg":"stream: started","id":"4xc45ca6"}
+{"time":"2025-06-17T12:26:55.79246452+05:30","level":"INFO","msg":"writer: Do: started","stream_id":"4xc45ca6"}
+{"time":"2025-06-17T12:26:55.792519073+05:30","level":"INFO","msg":"handler: started","stream_id":"4xc45ca6"}
+{"time":"2025-06-17T12:26:55.792567454+05:30","level":"INFO","msg":"sender: started","stream_id":"4xc45ca6"}
+{"time":"2025-06-17T12:26:56.222960317+05:30","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-06-17T12:27:01.689365087+05:30","level":"INFO","msg":"stream: closing","id":"4xc45ca6"}
+{"time":"2025-06-17T12:27:01.689401145+05:30","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-06-17T12:27:01.689443515+05:30","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-06-17T12:27:02.707039488+05:30","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-06-17T12:27:03.102206612+05:30","level":"INFO","msg":"handler: closed","stream_id":"4xc45ca6"}
+{"time":"2025-06-17T12:27:03.102304857+05:30","level":"INFO","msg":"sender: closed","stream_id":"4xc45ca6"}
+{"time":"2025-06-17T12:27:03.102292644+05:30","level":"INFO","msg":"writer: Close: closed","stream_id":"4xc45ca6"}
+{"time":"2025-06-17T12:27:03.10243422+05:30","level":"INFO","msg":"stream: closed","id":"4xc45ca6"}
