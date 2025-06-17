@@ -42,6 +42,17 @@ class LorentzInputBlock(nn.Module):
                 img_dim,
                 in_channels,
                 kernel_size=3,
+                stride=2,
+                padding=1,
+                bias=bias
+            ),
+            get_Activation(self.manifold),
+            get_Conv2d(
+                self.manifold,
+                in_channels,
+                in_channels,
+                kernel_size=3,
+                stride=2,
                 padding=1,
                 bias=bias
             ),

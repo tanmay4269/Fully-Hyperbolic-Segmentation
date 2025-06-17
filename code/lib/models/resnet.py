@@ -55,21 +55,21 @@ class ResNet(nn.Module):
 
     def forward(self, x, return_features=False):
         out = self.conv1(x)
-
         out_1 = self.conv2_x(out)
         out_2 = self.conv3_x(out_1)
         out_3 = self.conv4_x(out_2)
         out_4 = self.conv5_x(out_3)
         out = self.avg_pool(out_4)
+        
+        if return_features:
+            return [out_1, out_2, out_3, out_4]
+        
         out = out.view(out.size(0), -1)
 
         if self.predictor is not None:
             out = self.predictor(out)
 
-        if not return_features:
-            return out
-        else:
-            return [out_1, out_2, out_3, out_4]
+        return out
 
     def _make_layer(self, block, out_channels, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)

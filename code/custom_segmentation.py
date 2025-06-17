@@ -13,6 +13,7 @@ import os
 from torchmetrics.classification import MulticlassJaccardIndex
 
 from segmentation.fpn import FPN, HyperbolicFPN
+from lib.geoopt.optim import RiemannianAdam, RiemannianSGD
 
 
 class VOCDatasetWrapper:
@@ -27,11 +28,16 @@ class VOCDatasetWrapper:
         return img, mask.squeeze(0).long()
 
 class Trainer:
-    def __init__(self, model, device, num_classes=21):
+    def __init__(self, model, device, num_classes=21, use_hyperbolic=False):
         self.model = model.to(device)
         self.device = device
         self.num_classes = num_classes
-        self.optimizer = Adam(model.parameters(), lr=1e-4)
+        self.use_hyperbolic = use_hyperbolic
+        
+        if self.use_hyperbolic:
+            self.optimizer = RiemannianAdam(model.parameters(), lr=5e-5, weight_decay=1e-5, stabilize=1)
+        else:
+            self.optimizer = Adam(model.parameters(), lr=1e-4)
         
         # Initialize IoU metric
         self.train_iou = MulticlassJaccardIndex(
@@ -137,8 +143,10 @@ def main():
 
     # Initialize model and trainer
     # model = FPN(backbone='resnet18', num_classes=21, pretrained=False)
+    # trainer = Trainer(model, device, use_hyperbolic=False)
+    
     model = HyperbolicFPN(num_classes=21)
-    trainer = Trainer(model, device)
+    trainer = Trainer(model, device, use_hyperbolic=True)
 
     # Training loop
     num_epochs = 200
