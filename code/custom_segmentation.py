@@ -12,7 +12,7 @@ from tqdm import tqdm
 import os
 from torchmetrics.classification import MulticlassJaccardIndex
 
-from segmentation.fpn import FPN
+from segmentation.fpn import FPN, HyperbolicFPN
 
 
 class VOCDatasetWrapper:
@@ -136,7 +136,8 @@ def main():
     # val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=2, pin_memory=True)
 
     # Initialize model and trainer
-    model = FPN(backbone='resnet18', num_classes=21, pretrained=False)
+    # model = FPN(backbone='resnet18', num_classes=21, pretrained=False)
+    model = HyperbolicFPN(num_classes=21)
     trainer = Trainer(model, device)
 
     # Training loop

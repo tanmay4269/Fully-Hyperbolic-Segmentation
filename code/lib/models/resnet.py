@@ -53,7 +53,7 @@ class ResNet(nn.Module):
         else:
             self.predictor = self._get_predictor(self.embed_dim*block.expansion, num_classes)
 
-    def forward(self, x):
+    def forward(self, x, return_features=False):
         out = self.conv1(x)
 
         out_1 = self.conv2_x(out)
@@ -66,7 +66,10 @@ class ResNet(nn.Module):
         if self.predictor is not None:
             out = self.predictor(out)
 
-        return out
+        if not return_features:
+            return out
+        else:
+            return [out_1, out_2, out_3, out_4]
 
     def _make_layer(self, block, out_channels, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
