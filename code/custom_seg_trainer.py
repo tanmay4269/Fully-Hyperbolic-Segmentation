@@ -1,27 +1,27 @@
+import os
+import argparse
+from tqdm import tqdm
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.optim import Adam
 from torch.utils.data import DataLoader
-import argparse
 
 from torchvision import transforms
 from torchvision.datasets import VOCSegmentation
-import torchvision.transforms.functional as TF
-from torch.optim import Adam
-import numpy as np
-from tqdm import tqdm
-import os
 from torchmetrics.classification import MulticlassJaccardIndex
 
-from segmentation.fpn import FPN, HyperbolicFPN
+import seg_models 
 from lib.geoopt.optim import RiemannianAdam, RiemannianSGD
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Training script for segmentation models')
     # Model parameters
-    parser.add_argument('--model-type', type=str, default='hyperbolic', choices=['standard', 'hyperbolic'],
-                      help='Type of model to use (standard or hyperbolic)')
+    parser.add_argument('--model-type', type=str, default='hyperbolic', 
+                        choices=['standard', 'hyperbolic'],
+                        help='Type of model to use (standard or hyperbolic)')
     parser.add_argument('--backbone', type=str, default='resnet18',
                       help='Backbone architecture for FPN')
     parser.add_argument('--num-classes', type=int, default=21,
@@ -32,7 +32,7 @@ def get_args():
                       help='Batch size for training')
     parser.add_argument('--num-epochs', type=int, default=200,
                       help='Number of training epochs')
-    parser.add_argument('--lr', type=float, default=5e-5,
+    parser.add_argument('--lr', type=float, default=1e-4,
                       help='Learning rate')
     parser.add_argument('--weight-decay', type=float, default=1e-5,
                       help='Weight decay for optimizer')
@@ -100,7 +100,8 @@ class Trainer:
         total_loss = 0
         self.train_iou.reset()
         
-        for images, masks in tqdm(dataloader, desc="Training", disable=not self.debug):
+        # for images, masks in tqdm(dataloader, desc="Training", disable=not self.debug):
+        for images, masks in dataloader:
             images = images.to(self.device)
             masks = masks.to(self.device)
             
@@ -130,7 +131,8 @@ class Trainer:
         self.val_iou.reset()
         
         with torch.no_grad():
-            for images, masks in tqdm(dataloader, desc="Validation", disable=not self.debug):
+            # for images, masks in tqdm(dataloader, desc="Validation", disable=not self.debug):
+            for images, masks in dataloader:
                 images = images.to(self.device)
                 masks = masks.to(self.device)
                 
@@ -218,11 +220,11 @@ def main():
 
     # Initialize model based on arguments
     if args.model_type == 'hyperbolic':
-        model = HyperbolicFPN(num_classes=args.num_classes)
+        model = seg_models.HyperbolicFPN(num_classes=args.num_classes)
     else:
-        model = FPN(backbone=args.backbone, 
+        model = seg_models.FPN(backbone=args.backbone, 
                    num_classes=args.num_classes, 
-                   pretrained=not args.debug)  # Don't load pretrained in debug mode
+                   pretrained=False)
     
     trainer = Trainer(model, device, args)
 

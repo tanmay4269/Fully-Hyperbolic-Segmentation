@@ -10,7 +10,7 @@ from lib.lorentz.blocks.layer_blocks import LFC_Block, LConv2d_Block, LTranspose
 
 
 class FPN(nn.Module):
-    def __init__(self, backbone='resnet34', num_classes=1, pretrained=True):
+    def __init__(self, backbone='resnet34', num_classes=1, pretrained=False):
         super().__init__()
         
         # Load backbone and get feature channels
@@ -123,6 +123,35 @@ class HyperbolicFPN(nn.Module):
         x = x.reshape(B, H * scale_factor, W * scale_factor, C)
         return x
 
+    def hyperbolic_bilinear_upsampling_fast(self, x, size=None, scale_factor=None):
+        """
+        Fastest approximation: use standard bilinear then project back to hyperboloid
+        Not geometrically perfect but very efficient and often good enough
+        """
+        if size is not None:
+            interp = F.interpolate(x, size=size, mode='bilinear', align_corners=False)
+        else:
+            interp = F.interpolate(x, scale_factor=scale_factor, mode='bilinear', align_corners=False)
+        
+        # Project back to hyperboloid by normalizing Lorentz constraint
+        # ||x||_L^2 = -x_0^2 + ||x_1:||^2 = -1
+        
+        # Split time and space components
+        x0 = interp[..., 0:1, :, :]  # time component
+        x_space = interp[..., 1:, :, :]  # space components
+        
+        # Compute space norm
+        space_norm_sq = torch.sum(x_space**2, dim=-3, keepdim=True)
+        
+        # Fix time component to satisfy constraint: x_0 = sqrt(1 + ||x_space||^2)
+        x0_corrected = torch.sqrt(1 + space_norm_sq)
+        
+        # Reconstruct
+        result = torch.cat([x0_corrected, x_space], dim=-3)
+        
+        return result
+
+
     def forward(self, x):
         c1, c2, c3, c4 = self.backbone(x, return_features=True)
         
@@ -138,6 +167,7 @@ class HyperbolicFPN(nn.Module):
         p2 = self.fpn2(p2)
         p1 = self.fpn1(p1)
         
+        # modularize this
         p4 = p4.permute(0,3,1,2)
         p3 = p3.permute(0,3,1,2)
         p2 = p2.permute(0,3,1,2)
@@ -145,15 +175,15 @@ class HyperbolicFPN(nn.Module):
         
         # Upsample all to same size and add
         _, _, h, w = p1.shape
-        p4_up = F.interpolate(p4, size=(h, w), mode='bilinear', align_corners=False)
-        p3_up = F.interpolate(p3, size=(h, w), mode='bilinear', align_corners=False)
-        p2_up = F.interpolate(p2, size=(h, w), mode='bilinear', align_corners=False)
+        p4_up = self.hyperbolic_bilinear_upsampling_fast(p4, size=(h, w))
+        p3_up = self.hyperbolic_bilinear_upsampling_fast(p3, size=(h, w))
+        p2_up = self.hyperbolic_bilinear_upsampling_fast(p2, size=(h, w))
         
         # Combine features
         fused = p1 + p2_up + p3_up + p4_up
-        fused = fused.permute(0,2,3,1)
         
         # Final classification
+        fused = fused.permute(0,2,3,1)
         out = self.classifier(fused)
         out = out.permute(0,3,1,2)
         

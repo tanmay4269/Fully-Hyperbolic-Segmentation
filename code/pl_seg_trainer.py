@@ -11,58 +11,7 @@ from torchvision.datasets import VOCSegmentation
 from torchvision.models import resnet18, ResNet18_Weights
 import torchmetrics
 
-
-class UNetWithResNetBackbone(nn.Module):
-    def __init__(self, n_classes: int = 21, backbone: str = 'resnet18'):
-        super().__init__()
-        
-        # Load pre-trained ResNet backbone
-        if backbone == 'resnet18':
-            # self.backbone = resnet18(weights=ResNet18_Weights.DEFAULT)
-            self.backbone = resnet18()
-        
-        # Encoder layers (using ResNet layers)
-        self.encoder1 = nn.Sequential(self.backbone.conv1, 
-                                    self.backbone.bn1,
-                                    self.backbone.relu)  # 64 channels
-        self.encoder2 = self.backbone.layer1  # 64 channels
-        self.encoder3 = self.backbone.layer2  # 128 channels
-        self.encoder4 = self.backbone.layer3  # 256 channels
-        self.encoder5 = self.backbone.layer4  # 512 channels
-        
-        # Decoder layers
-        self.decoder4 = self._make_decoder_block(512, 256)
-        self.decoder3 = self._make_decoder_block(256, 128)
-        self.decoder2 = self._make_decoder_block(128, 64)
-        self.decoder1 = self._make_decoder_block(64, 32)
-        
-        # Final classification layer
-        self.final = nn.Conv2d(32, n_classes, kernel_size=1)
-        
-    def _make_decoder_block(self, in_channels: int, out_channels: int) -> nn.Sequential:
-        return nn.Sequential(
-            nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
-        )
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # Encoder path
-        e1 = self.encoder1(x)
-        e2 = self.encoder2(e1)
-        e3 = self.encoder3(e2)
-        e4 = self.encoder4(e3)
-        e5 = self.encoder5(e4)
-        
-        # Decoder path with skip connections
-        d4 = self.decoder4(e5) + e4
-        d3 = self.decoder3(d4) + e3
-        d2 = self.decoder2(d3) + e2
-        d1 = self.decoder1(d2)
-        
-        # Final classification
-        return self.final(d1)
+import seg_models
 
 class VOCSegmentationModule(pl.LightningModule):
     def __init__(
@@ -77,7 +26,7 @@ class VOCSegmentationModule(pl.LightningModule):
         self.save_hyperparameters()
         
         # Model
-        self.model = UNetWithResNetBackbone(n_classes=21, backbone=backbone)
+        self.model = seg_models.FPN(backbone=backbone, num_classes=21, pretrained=False)
         
         # Metrics
         self.train_iou = torchmetrics.JaccardIndex(task="multiclass", num_classes=21)
