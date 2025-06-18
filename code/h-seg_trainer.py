@@ -17,10 +17,14 @@ from lib.geoopt.optim import RiemannianAdam, RiemannianSGD
 
 import wandb
 import optuna
+import numpy as np
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Training script for segmentation models')
+    
     # Model parameters
     parser.add_argument('--model-type', type=str, default='hyperbolic', 
                         choices=['standard', 'hyperbolic'],
@@ -39,6 +43,8 @@ def get_args():
                       help='Number of training epochs')
     parser.add_argument('--lr', type=float, default=5e-4,
                       help='Learning rate')
+    parser.add_argument('--backbone-lr-factor', type=float, default=0.1,
+                      help='Learning rate factor for the backbone')
     parser.add_argument('--weight-decay', type=float, default=1e-5,
                       help='Weight decay for optimizer')
     
@@ -82,15 +88,28 @@ def get_args():
     return args
 
 class VOCDatasetWrapper:
-    def __init__(self, root, image_set='train', transform=None, target_transform=None):
-        self.dataset = VOCSegmentation(root=root, image_set=image_set, download=False, transform=transform, target_transform=target_transform)
+    def __init__(self, root, image_set='train', albumentation_transform=None):
+        self.dataset = VOCSegmentation(root=root, image_set=image_set, download=False, transform=None, target_transform=None)
+        self.albumentation_transform = albumentation_transform
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, idx):
         img, mask = self.dataset[idx]
-        return img, mask.squeeze(0).long()
+        
+        if self.albumentation_transform is None:
+            return transforms.ToTensor()(img), torch.tensor(np.array(mask)).long()
+        
+        img_np = np.array(img)
+        mask_np = np.array(mask)
+        
+        transformed = self.albumentation_transform(image=img_np, mask=mask_np)
+        img_transformed = transformed['image']
+        mask_transformed = transformed['mask']
+        
+        return img_transformed, torch.tensor(mask_transformed).long()
+        
 
 class Trainer:
     def __init__(self, model, device, args):
@@ -101,15 +120,24 @@ class Trainer:
         self.debug = args.debug
         self.use_wandb = not args.no_wandb
         
+        # Separate backbone and head parameters for different learning rates
+        backbone_params = []
+        head_params = []
+        for name, param in model.named_parameters():
+            if 'backbone' in name:
+                backbone_params.append(param)
+            else:
+                head_params.append(param)
+        
+        param_groups = [
+            {'params': backbone_params, 'lr': args.lr * args.backbone_lr_factor},
+            {'params': head_params, 'lr': args.lr}
+        ]
+        
         if self.use_hyperbolic:
-            self.optimizer = RiemannianAdam(model.parameters(), 
-                                          lr=args.lr, 
-                                          weight_decay=args.weight_decay, 
-                                          stabilize=1)
+            self.optimizer = RiemannianAdam(param_groups, weight_decay=args.weight_decay, stabilize=1)
         else:
-            self.optimizer = Adam(model.parameters(), 
-                                lr=args.lr, 
-                                weight_decay=args.weight_decay)
+            self.optimizer = Adam(param_groups, weight_decay=args.weight_decay)
         
         # Initialize IoU metric
         self.train_iou = MulticlassJaccardIndex(
@@ -217,38 +245,43 @@ def run_training(args, trial=None):
     if args.save_model:
         os.makedirs(args.checkpoint_dir, exist_ok=True)
 
-    train_transform = transforms.Compose([
-        transforms.Resize(args.img_size),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomAffine(degrees=10, translate=(0.1, 0.1), scale=(0.9, 1.1)),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    # Define albumentations transforms for training
+    train_transform = A.Compose([
+        A.OneOf([
+            A.Resize(height=args.img_size[0], width=args.img_size[1]),
+            A.Sequential([
+                A.RandomScale(scale_limit=0.2),
+                A.PadIfNeeded(min_height=args.img_size[0], min_width=args.img_size[1]),
+                A.RandomCrop(height=args.img_size[0], width=args.img_size[1]),
+            ])
+        ], p=1.0),
+        A.HorizontalFlip(p=0.5),
+        A.RandomBrightnessContrast(p=0.2),
+        A.GaussianBlur(p=0.2),
+        # A.RandomRotate90(p=0.2),
+        # A.ElasticTransform(alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03, p=0.3),
+        # A.GridDistortion(p=0.3),
+        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ToTensorV2(),
     ])
-
-    val_transform = transforms.Compose([
-        transforms.Resize(args.img_size),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-    ])
-
-    target_transform = transforms.Compose([
-        transforms.Resize(args.img_size, interpolation=transforms.InterpolationMode.NEAREST),
-        transforms.PILToTensor()
+    
+    # Define albumentations transforms for validation
+    val_transform = A.Compose([
+        A.Resize(height=args.img_size[0], width=args.img_size[1]),
+        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ToTensorV2(),
     ])
 
     train_dataset = VOCDatasetWrapper(
         args.data_root,
         image_set='train',
-        transform=train_transform,
-        target_transform=target_transform,
+        albumentation_transform=train_transform,
     )
 
     val_dataset = VOCDatasetWrapper(
         args.data_root,
         image_set='val',
-        transform=val_transform,
-        target_transform=target_transform,
+        albumentation_transform=val_transform,
     )
 
     # Create dataloaders
@@ -281,10 +314,11 @@ def run_training(args, trial=None):
         )
     else:
         model = seg_models.FPN(
-            backbone=args.backbone, 
+            backbone=args.backbone,
             num_classes=args.num_classes, 
             pretrained=args.pretrained
         )
+        
     
     trainer = Trainer(model, device, args)
 
