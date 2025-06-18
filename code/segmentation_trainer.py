@@ -1,6 +1,5 @@
 import os
 import argparse
-from tqdm import tqdm
 
 import torch
 import torch.nn as nn
@@ -13,7 +12,7 @@ from torchvision.datasets import VOCSegmentation
 from torchmetrics.classification import MulticlassJaccardIndex
 
 import seg_models 
-from lib.geoopt.optim import RiemannianAdam, RiemannianSGD
+from lib.geoopt.optim import RiemannianAdam 
 
 import wandb
 import optuna
