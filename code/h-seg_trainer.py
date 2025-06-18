@@ -108,7 +108,11 @@ class VOCDatasetWrapper:
         img_transformed = transformed['image']
         mask_transformed = transformed['mask']
         
-        return img_transformed, torch.tensor(mask_transformed).long()
+        # Handle the case where mask_transformed might already be a tensor
+        if isinstance(mask_transformed, torch.Tensor):
+            return img_transformed, mask_transformed.long()
+        else:
+            return img_transformed, torch.from_numpy(mask_transformed).long()
         
 
 class Trainer:
@@ -392,7 +396,9 @@ def main():
         def objective(trial):
             trial_args = argparse.Namespace(**vars(base_args))
 
+            # trial_args.pretrained = trial.suggest_categorical('pretrained', [True, False])
             trial_args.lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
+            trial_args.backbone_lr_factor = trial.suggest_float('backbone_lr_factor', 0.01, 0.5, log=True)
             trial_args.weight_decay = trial.suggest_float('weight_decay', 1e-6, 1e-3, log=True)
 
             # Setting a unique name for wandb run if it's enabled
