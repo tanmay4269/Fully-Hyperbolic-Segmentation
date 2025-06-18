@@ -1,7 +1,6 @@
 import os
 import argparse
 from tqdm import tqdm
-import wandb
 
 import torch
 import torch.nn as nn
@@ -16,6 +15,9 @@ from torchmetrics.classification import MulticlassJaccardIndex
 import seg_models 
 from lib.geoopt.optim import RiemannianAdam, RiemannianSGD
 
+import wandb
+import optuna
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='Training script for segmentation models')
@@ -25,6 +27,8 @@ def get_args():
                         help='Type of model to use (standard or hyperbolic)')
     parser.add_argument('--backbone', type=str, default='resnet18',
                       help='Backbone architecture for FPN')
+    parser.add_argument('--pretrained', action='store_true',
+                        help='Use pretrained weights for the backbone')
     parser.add_argument('--num-classes', type=int, default=21,
                       help='Number of classes for segmentation')
     
@@ -63,6 +67,16 @@ def get_args():
                       help='Name of the run (optional)')
     parser.add_argument('--no-wandb', action='store_true',
                       help='Disable Weights & Biases logging')
+    
+    # Optuna parameters
+    parser.add_argument('--use-optuna', action='store_true',
+                        help='Enable hyperparameter tuning with Optuna')
+    parser.add_argument('--n-trials', type=int, default=50,
+                        help='Number of trials for Optuna study')
+    parser.add_argument('--prune-threshold', type=float, default=0.9,
+                        help='Threshold for pruning Optuna study')
+    parser.add_argument('--prune-patience', type=int, default=5,
+                        help='Number of epochs to wait before pruning')
     
     args = parser.parse_args()
     return args
@@ -168,8 +182,17 @@ class Trainer:
             return total_loss, mean_iou.item()
         return total_loss / len(dataloader), mean_iou.item()
 
-def main():
-    args = get_args()
+def run_training(args, trial=None):
+    """
+    Runs the training and validation loop for the segmentation model.
+    
+    Args:
+        args: Command line arguments
+        trial: Optional Optuna trial object for hyperparameter optimization
+    
+    Returns:
+        best_val_iou: Best validation IoU achieved during training
+    """
     print("Arguments:")
     print("-" * 40)
     for arg, value in vars(args).items():
@@ -250,18 +273,23 @@ def main():
 
     # Initialize model based on arguments
     if args.model_type == 'hyperbolic':
-        model = seg_models.HyperbolicFPN(num_classes=args.num_classes)
+        assert args.pretrained == False, \
+            "Pretrained weights are not yet supported for hyperbolic model"
+            
+        model = seg_models.HyperbolicFPN(
+            num_classes=args.num_classes,
+        )
     else:
-        model = seg_models.FPN(backbone=args.backbone, 
-                   num_classes=args.num_classes, 
-                   pretrained=False)
+        model = seg_models.FPN(
+            backbone=args.backbone, 
+            num_classes=args.num_classes, 
+            pretrained=args.pretrained
+        )
     
     trainer = Trainer(model, device, args)
 
     # Training loop
     num_epochs = args.num_epochs
-        
-    best_val_loss = float('inf')
     best_val_iou = 0.0
     
     for epoch in range(num_epochs):
@@ -272,6 +300,15 @@ def main():
         
         print(f"Training Loss: {train_loss:.4f}, Training mIoU: {train_iou:.4f}")
         print(f"Validation Loss: {val_loss:.4f}, Validation mIoU: {val_iou:.4f}")
+        
+        # Pruning if Optuna is enabled
+        if trial is not None and train_iou > 0:
+            iou_ratio = val_iou / train_iou
+            trial.report(val_iou, epoch)
+            
+            if iou_ratio < args.prune_threshold and epoch >= args.prune_patience:
+                print(f"Trial pruned at epoch {epoch+1} with val_iou/train_iou = {iou_ratio:.4f}")
+                raise optuna.TrialPruned()
         
         # Log metrics to wandb
         if not args.no_wandb:
@@ -307,6 +344,46 @@ def main():
     # Close wandb run
     if not args.no_wandb:
         wandb.finish()
+    
+    return best_val_iou
+
+def main():
+    """
+    Main entry point for the script.
+    Handles either a single training run or an Optuna hyperparameter study.
+    """
+    base_args = get_args()
+
+    if base_args.use_optuna:
+        def objective(trial):
+            trial_args = argparse.Namespace(**vars(base_args))
+
+            trial_args.lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
+            trial_args.weight_decay = trial.suggest_float('weight_decay', 1e-6, 1e-3, log=True)
+
+            # Setting a unique name for wandb run if it's enabled
+            if not trial_args.no_wandb:
+                trial_args.wandb_name = f"trial-{trial.number}"
+
+            print(f"\nStarting trial {trial.number} with params: {trial.params}")
+            
+            return run_training(trial_args, trial)
+
+        study = optuna.create_study(direction='maximize', pruner=optuna.pruners.MedianPruner())
+        study.optimize(objective, n_trials=base_args.n_trials)
+
+        print("Study statistics: ")
+        print(f"  Number of finished trials: {len(study.trials)}")
+        print("Best trial:")
+        trial = study.best_trial
+
+        print(f"  Value: {trial.value}")
+        print("  Params: ")
+        for key, value in trial.params.items():
+            print(f"    {key}: {value}")
+    else:
+        run_training(base_args)
+
 
 if __name__ == "__main__":
     main() 
