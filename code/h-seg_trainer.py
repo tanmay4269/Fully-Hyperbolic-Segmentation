@@ -262,9 +262,6 @@ def run_training(args, trial=None):
         A.HorizontalFlip(p=0.5),
         A.RandomBrightnessContrast(p=0.2),
         A.GaussianBlur(p=0.2),
-        # A.RandomRotate90(p=0.2),
-        # A.ElasticTransform(alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03, p=0.3),
-        # A.GridDistortion(p=0.3),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ToTensorV2(),
     ])
