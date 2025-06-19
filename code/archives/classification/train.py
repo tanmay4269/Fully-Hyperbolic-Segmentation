@@ -3,7 +3,7 @@
 import os
 import sys
 
-working_dir = os.path.join(os.path.realpath(os.path.dirname(__file__)), "../")
+working_dir = os.path.join(os.path.realpath(os.path.dirname(__file__)), "../../")
 os.chdir(working_dir)
 
 lib_path = os.path.join(working_dir)

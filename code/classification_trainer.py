@@ -379,7 +379,6 @@ def main():
             
             trial_args.lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
             trial_args.weight_decay = trial.suggest_float('weight_decay', 1e-6, 1e-3, log=True)
-            trial_args.batch_size = trial.suggest_categorical('batch_size', [32, 64, 128])
 
             if not trial_args.no_wandb:
                 trial_args.wandb_name = f"trial-{trial.number}-{trial_args.backbone}-{trial_args.model_type}"
