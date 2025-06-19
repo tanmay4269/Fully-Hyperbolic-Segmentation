@@ -16,6 +16,8 @@ from torch.nn import DataParallel
 import configargparse
 from tqdm import tqdm
 
+import wandb
+from datetime import datetime
 import random
 import numpy as np
 
@@ -99,6 +101,16 @@ def getArguments():
                         choices=["MNIST", "CIFAR-10", "CIFAR-100", "Tiny-ImageNet"],
                         help="Select a dataset.")
 
+    # Wandb settings
+    parser.add_argument('--no-wandb', action='store_true',
+                        help='Disable Weights & Biases logging')
+    parser.add_argument('--wandb-project', type=str, default='hyperbolic-classification',
+                        help='Weights & Biases project name')
+    parser.add_argument('--wandb-entity', type=str, default=None,
+                        help='Weights & Biases entity (username or team name)')
+    parser.add_argument('--wandb-name', type=str, default=None,
+                        help='Name of the run (optional)')
+
     args = parser.parse_args()
 
     return args
@@ -108,6 +120,21 @@ def main(args):
     device = args.device[0]
     torch.cuda.set_device(device)
     torch.cuda.empty_cache()
+
+    if args.output_dir is not None:
+        args.exp_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + "_" + args.exp_name
+
+    if not args.no_wandb:
+        # Set wandb run name
+        if args.wandb_name is None:
+            args.wandb_name = args.exp_name
+
+        wandb.init(
+            project=args.wandb_project,
+            entity=args.wandb_entity,
+            name=args.wandb_name,
+            config=vars(args)
+        )
 
     print("Running experiment: " + args.exp_name)
 
@@ -152,7 +179,7 @@ def main(args):
         acc1 = AverageMeter("Acc@1", ":6.2f")
         acc5 = AverageMeter("Acc@5", ":6.2f")
 
-        for i, (x, y) in tqdm(enumerate(train_loader)):
+        for i, (x, y) in tqdm(enumerate(train_loader), disable=args.debug):
             # ------- Start iteration -------
             x = x.to(device)
             y = y.to(device)
@@ -172,6 +199,14 @@ def main(args):
 
             global_step += 1
 
+            if not args.no_wandb and global_step % 100 == 0:
+                wandb.log({
+                    'batch/train_loss': loss.item(),
+                    'batch/train_acc1': top1.item(),
+                    'batch/train_acc5': top5.item(),
+                    'global_step': global_step
+                })
+
             if args.debug:
                 break
 
@@ -187,6 +222,18 @@ def main(args):
                 lr_scheduler.step()
 
             loss_val, acc1_val, acc5_val = evaluate(model, val_loader, criterion, device, args)
+
+            if not args.no_wandb:
+                wandb.log({
+                    'epoch': epoch + 1,
+                    'train/loss': losses.avg,
+                    'train/acc1': acc1.avg,
+                    'train/acc5': acc5.avg,
+                    'val/loss': loss_val,
+                    'val/acc1': acc1_val,
+                    'val/acc5': acc5_val,
+                    'lr': optimizer.param_groups[0]['lr']
+                })
 
             print(
                 "Epoch {}/{}: Loss={:.4f}, Acc@1={:.4f}, Acc@5={:.4f}, Validation: Loss={:.4f}, Acc@1={:.4f}, Acc@5={:.4f}".format(
@@ -205,6 +252,10 @@ def main(args):
                         'epoch': epoch,
                         'args': args,
                     }, save_path)
+                    if not args.no_wandb:
+                        wandb.save(save_path)
+                        wandb.run.summary['best_val_acc1'] = best_acc
+                        wandb.run.summary['best_epoch'] = best_epoch
         # ------- End validation and logging -------
 
     print("-----------------\nTraining finished\n-----------------")
@@ -242,6 +293,9 @@ def main(args):
             loss_test, acc1_test, acc5_test))
     else:
         print("Best model not saved, because no output_dir given.")
+
+    if not args.no_wandb:
+        wandb.finish()
 
 
 @torch.no_grad()

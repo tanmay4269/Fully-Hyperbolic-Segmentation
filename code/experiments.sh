@@ -1,3 +1,10 @@
+python archives/classification/train.py \
+    -c archives/classification/config/L-ResNet18.txt \
+    --debug \
+    --wandb-name cls-debug-lr-1e-2 \
+    --lr 1e-2
+
+    
 # python h-seg_trainer.py \
 #     --model-type standard \
 #     --backbone resnet18 \
