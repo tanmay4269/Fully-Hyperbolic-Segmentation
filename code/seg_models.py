@@ -6,7 +6,7 @@ from torchvision.models import resnet18, resnet34, resnet50, resnet101
 from lib.models.resnet import Custom_Lorentz_resnet18
 from lib.lorentz.manifold import CustomLorentz
 from lib.lorentz.layers import LorentzConv2d, LorentzMLR
-from lib.lorentz.blocks.layer_blocks import LFC_Block, LConv2d_Block, LTransposedConv2d_Block
+from lib.lorentz.blocks.layer_blocks import LConv2d_Block
 
 
 class FPN(nn.Module):
@@ -106,22 +106,67 @@ class HyperbolicFPN(nn.Module):
         self.feature_channels = [65, 129, 257, 513]
         self.fpn_channels = 257
         
-        
         # Lateral connections (1x1 conv to reduce channels)
-        self.lateral4 = LorentzConv2d(self.manifold, self.feature_channels[3], self.fpn_channels, 1)
-        self.lateral3 = LorentzConv2d(self.manifold, self.feature_channels[2], self.fpn_channels, 1)
-        self.lateral2 = LorentzConv2d(self.manifold, self.feature_channels[1], self.fpn_channels, 1)
-        self.lateral1 = LorentzConv2d(self.manifold, self.feature_channels[0], self.fpn_channels, 1)
+        self.lateral4 = self.conv_layer(self.feature_channels[3], self.fpn_channels, kernel_size=1)
+        self.lateral3 = self.conv_layer(self.feature_channels[2], self.fpn_channels, kernel_size=1)
+        self.lateral2 = self.conv_layer(self.feature_channels[1], self.fpn_channels, kernel_size=1)
+        self.lateral1 = self.conv_layer(self.feature_channels[0], self.fpn_channels, kernel_size=1)
         
         # Final convs after merging
-        self.fpn4 = LorentzConv2d(self.manifold, self.fpn_channels, self.fpn_channels, 3, padding=1)
-        self.fpn3 = LorentzConv2d(self.manifold, self.fpn_channels, self.fpn_channels, 3, padding=1)
-        self.fpn2 = LorentzConv2d(self.manifold, self.fpn_channels, self.fpn_channels, 3, padding=1)
-        self.fpn1 = LorentzConv2d(self.manifold, self.fpn_channels, self.fpn_channels, 3, padding=1)
+        self.fpn4 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
+        self.fpn3 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
+        self.fpn2 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
+        self.fpn1 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
         
         # Final classifier
         self.classifier = LorentzMLR(self.manifold, self.fpn_channels, num_classes)
         
+    def conv_layer(
+        self, 
+        in_channels, 
+        out_channels, 
+        kernel_size=3, 
+        stride=1,
+        padding=0
+    ):
+        return LConv2d_Block(
+            manifold=self.manifold, 
+            in_channels=in_channels, 
+            out_channels=out_channels, 
+            kernel_size=kernel_size, 
+            stride=stride, 
+            padding=padding,
+            bias=True,
+            activation=torch.relu,
+            normalization="batch_norm"
+        )
+
+    def forward(self, x):
+        c1, c2, c3, c4 = self.backbone(x, return_features=True)
+        
+        p4 = self.lateral4(c4)
+        p3 = self.lateral3(c3) + self.interpolate(p4, scale_factor=2, method='expand')
+        p2 = self.lateral2(c2) + self.interpolate(p3, scale_factor=2, method='expand')
+        p1 = self.lateral1(c1) + self.interpolate(p2, scale_factor=2, method='expand')
+        
+        p4 = self.fpn4(p4)
+        p3 = self.fpn3(p3)
+        p2 = self.fpn2(p2)
+        p1 = self.fpn1(p1)
+        
+        _, h, w, _ = p1.shape
+        p4 = self.interpolate(p4, size=(h, w), method='bilinear')
+        p3 = self.interpolate(p3, size=(h, w), method='bilinear')
+        p2 = self.interpolate(p2, size=(h, w), method='bilinear')
+        
+        fused = p1 + p2 + p3 + p4
+        
+        out = self.classifier(fused)
+        out = out.permute(0,3,1,2)
+        out = F.interpolate(out, scale_factor=4, mode='bilinear', align_corners=False)
+        
+        return out
+
     def interpolate(self, x, size=None, scale_factor=None, method='bilinear'):
         B, H, W, C = x.shape
         if size is not None and size[0] == H and size[1] == W:
@@ -170,30 +215,3 @@ class HyperbolicFPN(nn.Module):
         if permute_out:
             result = result.permute(0,2,3,1)
         return result
-
-
-    def forward(self, x):
-        c1, c2, c3, c4 = self.backbone(x, return_features=True)
-        
-        p4 = self.lateral4(c4)
-        p3 = self.lateral3(c3) + self.interpolate(p4, scale_factor=2, method='expand')
-        p2 = self.lateral2(c2) + self.interpolate(p3, scale_factor=2, method='expand')
-        p1 = self.lateral1(c1) + self.interpolate(p2, scale_factor=2, method='expand')
-        
-        p4 = self.fpn4(p4)
-        p3 = self.fpn3(p3)
-        p2 = self.fpn2(p2)
-        p1 = self.fpn1(p1)
-        
-        _, h, w, _ = p1.shape
-        p4 = self.interpolate(p4, size=(h, w), method='bilinear')
-        p3 = self.interpolate(p3, size=(h, w), method='bilinear')
-        p2 = self.interpolate(p2, size=(h, w), method='bilinear')
-        
-        fused = p1 + p2 + p3 + p4
-        
-        out = self.classifier(fused)
-        out = out.permute(0,3,1,2)
-        out = F.interpolate(out, scale_factor=4, mode='bilinear', align_corners=False)
-        
-        return out
