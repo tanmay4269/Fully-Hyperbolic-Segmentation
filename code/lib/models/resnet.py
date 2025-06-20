@@ -144,6 +144,33 @@ class ResNet(nn.Module):
         else:
             raise RuntimeError(f"Manifold {type(self.manifold)} not supported in ResNet.")
 
+class CustomResNet(nn.Module):
+    def __init__(
+        self,
+        block,
+        num_blocks,
+        manifold: CustomLorentz=None,
+        img_dim=[3,32,32],
+        embed_dim=512,
+        num_classes=100,
+        bias=True,
+        remove_linear=False,
+    ):
+        super(CustomResNet, self).__init__()
+        self.encoder = ResNet(
+            block,
+            num_blocks,
+            manifold,
+            img_dim,
+            embed_dim,
+            num_classes,
+            bias,
+            remove_linear
+        )
+    
+    def forward(self, x, return_features):
+        return self.encoder(x, return_features)
+
 #################################################
 #       Lorentz
 #################################################
@@ -162,6 +189,12 @@ def Lorentz_resnet18(k=1, learn_k=False, manifold=None, **kwargs):
     model = ResNet(LorentzBasicBlock, [2, 2, 2, 2], manifold, **kwargs)
     return model
 
+def Custom_Lorentz_resnet18(k=1, learn_k=False, manifold=None, **kwargs):
+    """Constructs a ResNet-18 model."""
+    if not manifold:
+        manifold = CustomLorentz(k=k, learnable=learn_k)
+    model = CustomResNet(LorentzBasicBlock, [2, 2, 2, 2], manifold, **kwargs)
+    return model
 
 def Lorentz_resnet34(k=1, learn_k=False, manifold=None, **kwargs):
     """Constructs a ResNet-34 model."""

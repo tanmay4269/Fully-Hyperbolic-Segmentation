@@ -6,6 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import MultiStepLR
 
 from torchvision import transforms
 from torchvision.datasets import VOCSegmentation
@@ -32,6 +33,7 @@ def get_args():
                       help='Backbone architecture for FPN')
     parser.add_argument('--pretrained', action='store_true',
                         help='Use pretrained weights for the backbone')
+    parser.add_argument('--pretrained-checkpoint-path', type=str, default=None)
     parser.add_argument('--num-classes', type=int, default=21,
                       help='Number of classes for segmentation')
     
@@ -47,6 +49,12 @@ def get_args():
     parser.add_argument('--weight-decay', type=float, default=1e-5,
                       help='Weight decay for optimizer')
     
+    parser.add_argument('--use-lr-scheduler', action='store_true',
+                        help="If learning rate should be reduced after step epochs using a LR scheduler.")
+    parser.add_argument('--lr-scheduler-milestones', default=[40, 100, 125], type=int, nargs="+",
+                        help="Milestones of LR scheduler.")
+    parser.add_argument('--lr-scheduler-gamma', default=0.2, type=float,
+                        help="Gamma parameter of LR scheduler.")
     # Data parameters
     parser.add_argument('--data-root', type=str, default='data/pascal_voc',
                       help='Root directory for dataset')
@@ -141,6 +149,14 @@ class Trainer:
             self.optimizer = RiemannianAdam(param_groups, weight_decay=args.weight_decay, stabilize=1)
         else:
             self.optimizer = Adam(param_groups, weight_decay=args.weight_decay)
+        
+        self.lr_scheduler = None
+        if args.use_lr_scheduler:
+            self.lr_scheduler = MultiStepLR(
+                self.optimizer, 
+                milestones=args.lr_scheduler_milestones, 
+                gamma=args.lr_scheduler_gamma
+            )
         
         # Initialize IoU metric
         self.train_iou = MulticlassJaccardIndex(
@@ -306,11 +322,9 @@ def run_training(args, trial=None):
 
     # Initialize model based on arguments
     if args.model_type == 'hyperbolic':
-        assert args.pretrained == False, \
-            "Pretrained weights are not yet supported for hyperbolic model"
-            
         model = seg_models.HyperbolicFPN(
             num_classes=args.num_classes,
+            checkpoint_path=args.pretrained_checkpoint_path
         )
     else:
         model = seg_models.FPN(
@@ -334,6 +348,9 @@ def run_training(args, trial=None):
         
         print(f"Training Loss: {train_loss:.4f}, Training mIoU: {train_iou:.4f}")
         print(f"Validation Loss: {val_loss:.4f}, Validation mIoU: {val_iou:.4f}")
+        
+        if trainer.lr_scheduler is not None:
+            trainer.lr_scheduler.step()
         
         # Pruning if Optuna is enabled
         if trial is not None and train_iou > 0:

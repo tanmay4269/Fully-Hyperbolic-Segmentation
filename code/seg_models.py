@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.models import resnet18, resnet34, resnet50, resnet101
 
-from lib.models.resnet import Lorentz_resnet18
+from lib.models.resnet import Custom_Lorentz_resnet18
 from lib.lorentz.manifold import CustomLorentz
 from lib.lorentz.layers import LorentzConv2d, LorentzMLR
 from lib.lorentz.blocks.layer_blocks import LFC_Block, LConv2d_Block, LTransposedConv2d_Block
@@ -92,10 +92,16 @@ class FPN(nn.Module):
 
 
 class HyperbolicFPN(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, checkpoint_path=None):
         super().__init__()
         self.manifold = CustomLorentz(k=1.0, learnable=False)
-        self.backbone = Lorentz_resnet18(manifold=self.manifold)
+        self.backbone = Custom_Lorentz_resnet18(manifold=self.manifold)
+
+        if checkpoint_path:
+            checkpoint = torch.load(checkpoint_path)
+            weights = checkpoint['model']
+            # self.backbone.load_state_dict(weights, strict=True)
+            self.backbone.load_state_dict(weights, strict=False)
 
         self.feature_channels = [65, 129, 257, 513]
         self.fpn_channels = 257
