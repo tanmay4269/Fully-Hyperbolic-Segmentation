@@ -1,5 +1,8 @@
 import os
 import argparse
+from datetime import datetime
+
+import numpy as np
 
 import torch
 import torch.nn as nn
@@ -7,6 +10,9 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
+
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
 
 from torchvision import transforms
 from torchvision.datasets import VOCSegmentation
@@ -17,9 +23,6 @@ from lib.geoopt.optim import RiemannianAdam
 
 import wandb
 import optuna
-import numpy as np
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
 
 
 def get_args():
@@ -68,7 +71,8 @@ def get_args():
                       help='Enable debug mode with limited data and epochs')
     parser.add_argument('--save-model', action='store_true',
                       help='Save the best model during training')
-    parser.add_argument('--checkpoint-dir', type=str, default='checkpoints',
+    parser.add_argument('--checkpoint-dir', type=str,
+                      default=f'checkpoints/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}',
                       help='Directory to save model checkpoints')
     
     # Wandb parameters
@@ -86,7 +90,7 @@ def get_args():
                         help='Enable hyperparameter tuning with Optuna')
     parser.add_argument('--n-trials', type=int, default=50,
                         help='Number of trials for Optuna study')
-    parser.add_argument('--prune-threshold', type=float, default=0.9,
+    parser.add_argument('--prune-threshold', type=float, default=0.85,
                         help='Threshold for pruning Optuna study')
     parser.add_argument('--prune-patience', type=int, default=5,
                         help='Number of epochs to wait before pruning')
@@ -370,6 +374,25 @@ def run_training(args, trial=None):
                 'val/loss': val_loss,
                 'val/mIoU': val_iou,
             })
+
+        if args.save_model and (epoch + 1) % 10 == 0:
+            checkpoint_path = os.path.join(args.checkpoint_dir, f'checkpoint_epoch_{epoch+1}.pth')
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': trainer.optimizer.state_dict(),
+                'train_loss': train_loss,
+                'train_iou': train_iou,
+                'val_loss': val_loss,
+                'val_iou': val_iou,
+                'args': args,
+            }
+            torch.save(checkpoint, checkpoint_path)
+            print(f"Saved model checkpoint to {checkpoint_path}")
+            
+            # Log model checkpoint to wandb
+            if not args.no_wandb:
+                wandb.save(checkpoint_path)
         
         # Save best model based on IoU
         if args.save_model and val_iou > best_val_iou:
