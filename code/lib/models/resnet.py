@@ -144,7 +144,10 @@ class ResNet(nn.Module):
         else:
             raise RuntimeError(f"Manifold {type(self.manifold)} not supported in ResNet.")
 
-class CustomResNet(nn.Module):
+class ResNetWrapper(nn.Module):
+    """
+    A temporary wraper to allow using pretrained backbone.
+    """
     def __init__(
         self,
         block,
@@ -156,7 +159,7 @@ class CustomResNet(nn.Module):
         bias=True,
         remove_linear=False,
     ):
-        super(CustomResNet, self).__init__()
+        super(ResNetWrapper, self).__init__()
         self.encoder = ResNet(
             block,
             num_blocks,
@@ -189,11 +192,11 @@ def Lorentz_resnet18(k=1, learn_k=False, manifold=None, **kwargs):
     model = ResNet(LorentzBasicBlock, [2, 2, 2, 2], manifold, **kwargs)
     return model
 
-def Custom_Lorentz_resnet18(k=1, learn_k=False, manifold=None, **kwargs):
+def Lorentz_resnet18_wrapper(k=1, learn_k=False, manifold=None, **kwargs):
     """Constructs a ResNet-18 model."""
     if not manifold:
         manifold = CustomLorentz(k=k, learnable=learn_k)
-    model = CustomResNet(LorentzBasicBlock, [2, 2, 2, 2], manifold, **kwargs)
+    model = ResNetWrapper(LorentzBasicBlock, [2, 2, 2, 2], manifold, **kwargs)
     return model
 
 def Lorentz_resnet34(k=1, learn_k=False, manifold=None, **kwargs):
