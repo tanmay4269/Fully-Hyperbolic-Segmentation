@@ -371,16 +371,13 @@ def run_training(args, trial=None):
         ])
     else:
         train_transform = A.Compose([
-            A.OneOf([
-                A.Resize(height=args.img_size[0], width=args.img_size[1]),
-                A.Sequential([
-                    A.RandomScale(scale_limit=0.2),
-                    A.PadIfNeeded(min_height=args.img_size[0], min_width=args.img_size[1]),
-                    A.RandomCrop(height=args.img_size[0], width=args.img_size[1]),
-                ])
-            ], p=1.0),
+            A.Sequential([
+                A.RandomScale(scale_limit=(-0.5, 1.0)),
+                A.PadIfNeeded(min_height=args.img_size[0], min_width=args.img_size[1]),
+                A.RandomCrop(height=args.img_size[0], width=args.img_size[1]),
+            ]),
             A.HorizontalFlip(p=0.5),
-            A.RandomBrightnessContrast(p=0.2),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.3),
             A.GaussianBlur(p=0.2),
             A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ToTensorV2(),
