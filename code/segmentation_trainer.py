@@ -1,6 +1,7 @@
 import os
 import argparse
 from datetime import datetime
+import logging
 
 import torch
 import torch.nn as nn
@@ -69,15 +70,22 @@ def get_args():
     parser.add_argument('--num-workers', type=int, default=2,
                       help='Number of workers for data loading')
 
+    # Run Management
+    parser.add_argument('--run-name', type=str, default=None,
+                        help="A name for this run. If not provided, a name will be generated.")
+    parser.add_argument('--log-dir', type=str, default='logs',
+                        help="Base directory for logs and checkpoints.")
+    parser.add_argument('--resume-checkpoint', type=str, default=None,
+                        help="Path to a checkpoint to resume training from.")
+    parser.add_argument('--save-interval', type=int, default=10,
+                        help="Save a checkpoint every N epochs.")
+
     # Debug parameters
     parser.add_argument('--debug', action='store_true',
                       help='Enable debug mode with limited data and epochs')
     parser.add_argument('--save-model', action='store_true',
                       help='Save the best model during training')
-    parser.add_argument('--checkpoint-dir', type=str,
-                      default=f'checkpoints/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}',
-                      help='Directory to save model checkpoints')
-
+    
     # Model parameters
     parser.add_argument('--manifold', type=str, default='hyperbolic', 
                         choices=['euclidean', 'hyperbolic'],
@@ -308,16 +316,46 @@ def run_training(args, trial=None):
     Returns:
         best_val_iou: Best validation IoU achieved during training
     """
-    print("Arguments:")
-    print("-" * 40)
+    # Setup run directory and logging
+    if not args.run_name:
+        run_name_parts = [datetime.now().strftime("%Y-%m-%d_%H-%M-%S")]
+        if args.wandb_name:
+            run_name_parts.append(args.wandb_name)
+        args.run_name = '_'.join(run_name_parts)
+    
+    args.run_dir = os.path.join(args.log_dir, args.run_name)
+    args.checkpoint_dir = os.path.join(args.run_dir, 'checkpoints')
+    
+    os.makedirs(args.checkpoint_dir, exist_ok=True)
+
+    # Setup logging to file and console
+    log_file = os.path.join(args.run_dir, 'run.log')
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # Remove any existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(file_handler)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(message)s')) # Cleaner console output
+    logger.addHandler(console_handler)
+    
+    logging.info("Starting new run...")
+    logging.info("Arguments:")
+    logging.info("-" * 40)
     for arg, value in vars(args).items():
-        print(f"{arg:20s}: {value}")
-    print("-" * 40)
+        logging.info(f"{arg:20s}: {value}")
+    logging.info("-" * 40)
     
     # Setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-    print(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
+    logging.info(f"Using device: {device}")
+    logging.info(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
 
     # Set number of classes based on dataset
     if args.dataset == 'cityscapes':
@@ -340,7 +378,7 @@ def run_training(args, trial=None):
 
     class_weights = None
     if args.class_balancing:
-        print("Calculating class weights...")
+        logging.info("Calculating class weights...")
         if args.dataset == 'cityscapes':
             # Create a temporary dataset without augmentations to calculate weights
             temp_dataset = CityscapesDataset(root=args.data_root, split='train')
@@ -355,11 +393,11 @@ def run_training(args, trial=None):
             # w_class = 1 / ln(1.02 + p_class)
             class_weights = 1.0 / torch.log(1.02 + class_counts / class_counts.sum())
             class_weights = class_weights.to(device)
-            print(f"Class weights: {class_weights}")
+            logging.info(f"Class weights: {class_weights}")
 
         elif args.dataset == 'pascal-voc':
             # Similar logic for Pascal VOC if needed
-            print("Class balancing for Pascal VOC is not implemented yet.")
+            logging.info("Class balancing for Pascal VOC is not implemented yet.")
             pass
 
     # Define albumentations transforms for training
@@ -457,18 +495,39 @@ def run_training(args, trial=None):
     
     trainer = Trainer(model, device, args, class_weights=class_weights)
 
+    # Resuming from checkpoint
+    start_epoch = 0
+    best_val_iou = 0.0
+    if args.resume_checkpoint:
+        if os.path.isfile(args.resume_checkpoint):
+            logging.info(f"Loading checkpoint '{args.resume_checkpoint}'")
+            checkpoint = torch.load(args.resume_checkpoint, map_location=device)
+            
+            start_epoch = checkpoint['epoch'] + 1
+            model.load_state_dict(checkpoint['model_state_dict'])
+            trainer.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            
+            if trainer.lr_scheduler and 'scheduler_state_dict' in checkpoint:
+                trainer.lr_scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            
+            if 'val_iou' in checkpoint:
+                 best_val_iou = checkpoint['val_iou']
+            
+            logging.info(f"Resumed training from epoch {start_epoch}. Previous best mIoU: {best_val_iou:.4f}")
+        else:
+            logging.error(f"No checkpoint found at '{args.resume_checkpoint}'")
+
     # Training loop
     num_epochs = args.num_epochs
-    best_val_iou = 0.0
     
-    for epoch in range(num_epochs):
-        print(f"\nEpoch {epoch+1}/{num_epochs}")
+    for epoch in range(start_epoch, num_epochs):
+        logging.info(f"\nEpoch {epoch+1}/{num_epochs}")
         
         train_loss, train_iou = trainer.train_epoch(train_loader)
         val_loss, val_iou = trainer.validate(val_loader)
         
-        print(f"Training Loss: {train_loss:.4f}, Training mIoU: {train_iou:.4f}")
-        print(f"Validation Loss: {val_loss:.4f}, Validation mIoU: {val_iou:.4f}")
+        logging.info(f"Training Loss: {train_loss:.4f}, Training mIoU: {train_iou:.4f}")
+        logging.info(f"Validation Loss: {val_loss:.4f}, Validation mIoU: {val_iou:.4f}")
         
         if trainer.lr_scheduler is not None:
             if isinstance(trainer.lr_scheduler, ReduceLROnPlateau):
@@ -482,22 +541,27 @@ def run_training(args, trial=None):
             trial.report(val_iou, epoch)
             
             if iou_ratio < args.prune_threshold and epoch >= args.prune_patience:
-                print(f"Trial pruned at epoch {epoch+1} with val_iou/train_iou = {iou_ratio:.4f}")
+                logging.info(f"Trial pruned at epoch {epoch+1} with val_iou/train_iou = {iou_ratio:.4f}")
                 if args.use_wandb:
                     wandb.finish()
                 raise optuna.TrialPruned()
         
         # Log metrics to wandb
         if args.use_wandb:
-            wandb.log({
+            log_data = {
                 'epoch': epoch + 1,
                 'train/loss': train_loss,
                 'train/mIoU': train_iou,
                 'val/loss': val_loss,
                 'val/mIoU': val_iou,
-            })
+                'lr/backbone': trainer.optimizer.param_groups[0]['lr'],
+                'lr/head': trainer.optimizer.param_groups[1]['lr'],
+            }
+            if train_iou > 0:
+                log_data['g-score'] = val_iou / train_iou
+            wandb.log(log_data)
 
-        if args.save_model and (epoch + 1) % 10 == 0:
+        if args.save_model and (epoch + 1) % args.save_interval == 0:
             checkpoint_path = os.path.join(args.checkpoint_dir, f'checkpoint_epoch_{epoch+1}.pth')
             checkpoint = {
                 'epoch': epoch,
@@ -509,14 +573,15 @@ def run_training(args, trial=None):
                 'val_iou': val_iou,
                 'args': args,
             }
+            if trainer.lr_scheduler:
+                checkpoint['scheduler_state_dict'] = trainer.lr_scheduler.state_dict()
             torch.save(checkpoint, checkpoint_path)
-            print(f"Saved model checkpoint to {checkpoint_path}")
+            logging.info(f"Saved model checkpoint to {checkpoint_path}")
             
             # Log model checkpoint to wandb
             if args.use_wandb:
                 wandb.save(checkpoint_path)
         
-        # Save best model based on IoU
         if args.save_model and val_iou > best_val_iou:
             best_val_iou = val_iou
             checkpoint_path = os.path.join(args.checkpoint_dir, 'best_model.pth')
@@ -528,8 +593,10 @@ def run_training(args, trial=None):
                 'val_iou': val_iou,
                 'args': args,
             }
+            if trainer.lr_scheduler:
+                checkpoint['scheduler_state_dict'] = trainer.lr_scheduler.state_dict()
             torch.save(checkpoint, checkpoint_path)
-            print(f"Saved best model checkpoint to {checkpoint_path} (best IoU)")
+            logging.info(f"Saved best model checkpoint to {checkpoint_path} (best IoU)")
             
             # Log best model to wandb
             if args.use_wandb:
