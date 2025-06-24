@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
 
@@ -18,7 +18,7 @@ from torchvision import transforms
 from torchvision.datasets import VOCSegmentation
 from torchmetrics.classification import MulticlassJaccardIndex
 
-from lib.geoopt.optim import RiemannianAdam 
+from lib.geoopt.optim import RiemannianAdam, RiemannianSGD
 from segmentation.fpn import FPN, HyperbolicFPN
 from segmentation.erfnet import ERFNet 
 
@@ -29,10 +29,27 @@ import optuna
 def get_args():
     parser = argparse.ArgumentParser(description='Training script for segmentation models')
     
+    # Data parameters
+    parser.add_argument('--data-root', type=str, default='data/pascal_voc',
+                      help='Root directory for dataset')
+    parser.add_argument('--img-size', type=int, nargs=2, default=[256, 256],
+                      help='Input image size (height, width)')
+    parser.add_argument('--num-workers', type=int, default=2,
+                      help='Number of workers for data loading')
+
+    # Debug parameters
+    parser.add_argument('--debug', action='store_true',
+                      help='Enable debug mode with limited data and epochs')
+    parser.add_argument('--save-model', action='store_true',
+                      help='Save the best model during training')
+    parser.add_argument('--checkpoint-dir', type=str,
+                      default=f'checkpoints/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}',
+                      help='Directory to save model checkpoints')
+
     # Model parameters
-    parser.add_argument('--model-type', type=str, default='hyperbolic', 
-                        choices=['standard', 'hyperbolic'],
-                        help='Type of model to use (standard or hyperbolic)')
+    parser.add_argument('--manifold', type=str, default='hyperbolic', 
+                        choices=['euclidean', 'hyperbolic'],
+                        help='Type of manifold that the model is defined on')
     parser.add_argument('--backbone', type=str, default='resnet18',
                       help='Backbone architecture for FPN')
     parser.add_argument('--pretrained', action='store_true',
@@ -46,11 +63,14 @@ def get_args():
                       help='Batch size for training')
     parser.add_argument('--num-epochs', type=int, default=200,
                       help='Number of training epochs')
-    parser.add_argument('--lr', type=float, default=5e-4,
+    
+    parser.add_argument('--optimizer', type=str, default='sgd',
+                      choices=['adam', 'sgd'])
+    parser.add_argument('--lr', type=float, default=3e-4,
                       help='Learning rate')
     parser.add_argument('--backbone-lr-factor', type=float, default=0.1,
                       help='Learning rate factor for the backbone')
-    parser.add_argument('--weight-decay', type=float, default=1e-5,
+    parser.add_argument('--weight-decay', type=float, default=1e-4,
                       help='Weight decay for optimizer')
     
     parser.add_argument('--use-lr-scheduler', action='store_true',
@@ -59,22 +79,7 @@ def get_args():
                         help="Milestones of LR scheduler.")
     parser.add_argument('--lr-scheduler-gamma', default=0.2, type=float,
                         help="Gamma parameter of LR scheduler.")
-    # Data parameters
-    parser.add_argument('--data-root', type=str, default='data/pascal_voc',
-                      help='Root directory for dataset')
-    parser.add_argument('--img-size', type=int, nargs=2, default=[256, 256],
-                      help='Input image size (height, width)')
-    parser.add_argument('--num-workers', type=int, default=2,
-                      help='Number of workers for data loading')
     
-    # Debug parameters
-    parser.add_argument('--debug', action='store_true',
-                      help='Enable debug mode with limited data and epochs')
-    parser.add_argument('--save-model', action='store_true',
-                      help='Save the best model during training')
-    parser.add_argument('--checkpoint-dir', type=str,
-                      default=f'checkpoints/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}',
-                      help='Directory to save model checkpoints')
     
     # Wandb parameters
     parser.add_argument('--wandb-project', type=str, default='fully-hyperbolic-segmentation',
@@ -132,7 +137,7 @@ class Trainer:
         self.model = model.to(device)
         self.device = device
         self.num_classes = args.num_classes
-        self.use_hyperbolic = args.model_type == 'hyperbolic'
+        self.use_hyperbolic = args.manifold == 'hyperbolic'
         self.debug = args.debug
         self.use_wandb = not args.no_wandb
         
@@ -151,9 +156,15 @@ class Trainer:
         ]
         
         if self.use_hyperbolic:
-            self.optimizer = RiemannianAdam(param_groups, weight_decay=args.weight_decay, stabilize=1)
+            if args.optimizer == 'adam':
+                self.optimizer = RiemannianAdam(param_groups, weight_decay=args.weight_decay, stabilize=1)
+            elif args.optimizer == 'sgd':
+                self.optimizer = RiemannianSGD(param_groups, lr=args.lr, weight_decay=args.weight_decay, momentum=0.9, nesterov=True, stabilize=1)
         else:
-            self.optimizer = Adam(param_groups, weight_decay=args.weight_decay)
+            if args.optimizer == 'adam':
+                self.optimizer = Adam(param_groups, weight_decay=args.weight_decay)
+            elif args.optimizer == 'sgd':
+                self.optimizer = SGD(param_groups, weight_decay=args.weight_decay)
         
         self.lr_scheduler = None
         if args.use_lr_scheduler:
@@ -323,7 +334,7 @@ def run_training(args, trial=None):
         )
 
     # Initialize model based on arguments
-    if args.model_type == 'hyperbolic':
+    if args.manifold == 'hyperbolic':
         model = HyperbolicFPN(
             num_classes=args.num_classes,
             checkpoint_path=args.pretrained_checkpoint_path
