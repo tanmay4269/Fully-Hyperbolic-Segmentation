@@ -2,25 +2,24 @@ import os
 import argparse
 from datetime import datetime
 
-import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam, SGD
-from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import MultiStepLR
+
+from segmentation.datasets.pascal_voc import VOCDataset
+from segmentation.datasets.cityscapes import CityscapesDataset
+from torch.utils.data import DataLoader
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
-from torchvision import transforms
-from torchvision.datasets import VOCSegmentation
 from torchmetrics.classification import MulticlassJaccardIndex
 
 from lib.geoopt.optim import RiemannianAdam, RiemannianSGD
-from segmentation.fpn import FPN, HyperbolicFPN
-from segmentation.erfnet import ERFNet 
+from segmentation.models.fpn import FPN, HyperbolicFPN
+from segmentation.models.erfnet import ERFNet 
 
 import wandb
 import optuna
@@ -110,33 +109,6 @@ def get_args():
     
     args = parser.parse_args()
     return args
-
-class VOCDatasetWrapper:
-    def __init__(self, root, image_set='train', albumentation_transform=None):
-        self.dataset = VOCSegmentation(root=root, image_set=image_set, download=False, transform=None, target_transform=None)
-        self.albumentation_transform = albumentation_transform
-
-    def __len__(self):
-        return len(self.dataset)
-
-    def __getitem__(self, idx):
-        img, mask = self.dataset[idx]
-        
-        if self.albumentation_transform is None:
-            return transforms.ToTensor()(img), torch.tensor(np.array(mask)).long()
-        
-        img_np = np.array(img)
-        mask_np = np.array(mask)
-        
-        transformed = self.albumentation_transform(image=img_np, mask=mask_np)
-        img_transformed = transformed['image']
-        mask_transformed = transformed['mask']
-        
-        # Handle the case where mask_transformed might already be a tensor
-        if isinstance(mask_transformed, torch.Tensor):
-            return img_transformed, mask_transformed.long()
-        else:
-            return img_transformed, torch.from_numpy(mask_transformed).long()
         
 
 class Trainer:
@@ -271,6 +243,12 @@ def run_training(args, trial=None):
     print(f"Using device: {device}")
     print(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
 
+    # Set number of classes based on dataset
+    if args.dataset == 'cityscapes':
+        args.num_classes = 19
+    elif args.dataset == 'pascal-voc':
+        args.num_classes = 21
+
     # Initialize wandb
     if args.use_wandb:
         wandb.init(
@@ -315,17 +293,31 @@ def run_training(args, trial=None):
         ToTensorV2(),
     ])
 
-    train_dataset = VOCDatasetWrapper(
-        args.data_root,
-        image_set='train',
-        albumentation_transform=train_transform,
-    )
+    if args.dataset == 'pascal-voc':
+        train_dataset = VOCDataset(
+            args.data_root,
+            image_set='train',
+            albumentation_transform=train_transform,
+        )
 
-    val_dataset = VOCDatasetWrapper(
-        args.data_root,
-        image_set='val',
-        albumentation_transform=val_transform,
-    )
+        val_dataset = VOCDataset(
+            args.data_root,
+            image_set='val',
+            albumentation_transform=val_transform,
+        )
+    elif args.dataset == 'cityscapes':
+        train_dataset = CityscapesDataset(
+            root=args.data_root,
+            split='train',
+            albumentation_transform=train_transform,
+        )
+        val_dataset = CityscapesDataset(
+            root=args.data_root,
+            split='val',
+            albumentation_transform=val_transform,
+        )
+    else:
+        raise ValueError(f"Unknown dataset: {args.dataset}")
 
     # Create dataloaders
     train_loader = DataLoader(
