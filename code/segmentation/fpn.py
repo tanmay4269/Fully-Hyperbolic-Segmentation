@@ -145,9 +145,9 @@ class HyperbolicFPN(nn.Module):
         c1, c2, c3, c4 = self.backbone(x, return_features=True)
         
         p4 = self.lateral4(c4)
-        p3 = self.lateral3(c3) + self.interpolate(p4, scale_factor=2, method='expand')
-        p2 = self.lateral2(c2) + self.interpolate(p3, scale_factor=2, method='expand')
-        p1 = self.lateral1(c1) + self.interpolate(p2, scale_factor=2, method='expand')
+        p3 = self.manifold.pt_addition(self.lateral3(c3), self.interpolate(p4, scale_factor=2, method='hyperbolic'))
+        p2 = self.manifold.pt_addition(self.lateral2(c2), self.interpolate(p3, scale_factor=2, method='hyperbolic'))
+        p1 = self.manifold.pt_addition(self.lateral1(c1), self.interpolate(p2, scale_factor=2, method='hyperbolic'))
         
         p4 = self.fpn4(p4)
         p3 = self.fpn3(p3)
@@ -155,11 +155,11 @@ class HyperbolicFPN(nn.Module):
         p1 = self.fpn1(p1)
         
         _, h, w, _ = p1.shape
-        p4 = self.interpolate(p4, size=(h, w), method='bilinear')
-        p3 = self.interpolate(p3, size=(h, w), method='bilinear')
-        p2 = self.interpolate(p2, size=(h, w), method='bilinear')
+        p4 = self.interpolate(p4, size=(h, w), method='hyperbolic')
+        p3 = self.interpolate(p3, size=(h, w), method='hyperbolic')
+        p2 = self.interpolate(p2, size=(h, w), method='hyperbolic')
         
-        fused = p1 + p2 + p3 + p4
+        fused = self.manifold.pt_addition(p1, self.manifold.pt_addition(p2, self.manifold.pt_addition(p3, p4)))
         
         out = self.classifier(fused)
         out = out.permute(0,3,1,2)
@@ -167,19 +167,19 @@ class HyperbolicFPN(nn.Module):
         
         return out
 
-    def interpolate(self, x, size=None, scale_factor=None, method='bilinear'):
+    def interpolate(self, x, size=None, scale_factor=None, method='hyperbolic'):
         B, H, W, C = x.shape
         if size is not None and size[0] == H and size[1] == W:
             return x
 
-        if method == 'bilinear':
-            return self.hyperbolic_bilinear_upsampling_fast(x, size, scale_factor)
-        elif method == 'expand':
-            return self.upsample_bhwc(x, size, scale_factor)
+        if method == 'hyperbolic':
+            return self._hyperbolic_interp(x, size, scale_factor)
+        elif method == 'nearest':
+            return self._nearest_interp(x, size, scale_factor)
         else:
             raise ValueError(f"Invalid interpolation method: {method}")
     
-    def upsample_bhwc(self, x, size=None, scale_factor=None):
+    def _nearest_interp(self, x, size=None, scale_factor=None):
         B, H, W, C = x.shape
         if size is not None:
             scale_factor = (int(size[0]/H), int(size[1]/W))
@@ -192,26 +192,35 @@ class HyperbolicFPN(nn.Module):
         x = x.reshape(B, H * scale_factor[0], W * scale_factor[1], C)
         return x
 
-    def hyperbolic_bilinear_upsampling_fast(self, x, size=None, scale_factor=None, permute=True, permute_out=True):
+    def _hyperbolic_interp(self, x, size=None, scale_factor=None):
+        """Performs bilinear up/down-sampling in the tangent space at the origin.
+
+        Steps:
+        1.  Map x \in H to the tangent space at the origin using logmap_0.
+        2.  Apply ordinary bilinear interpolation on that Euclidean tangent space.
+        3.  Map the result back to the manifold with expmap_0.
+
+        This preserves the manifold constraint exactly and approximates
+        geodesic interpolation much better than the previous coordinate-wise
+        variant. It is still an approximation because the tangent space is
+        taken at the origin for all pixels, but it is unbiased and keeps the
+        output on H.
         """
-        Fastest approximation: use standard bilinear then project back to hyperboloid
-        Not geometrically perfect but very efficient and often good enough
-        """
-        if permute:
-            x = x.permute(0,3,1,2)
+
+        # x is expected in BHWC format (batch, height, width, channels)
+        # 1. map to tangent space
+        u = self.manifold.logmap0(x)  # BHWC
+
+        # 2. permute to B C H W for torch.interpolate
+        u = u.permute(0, 3, 1, 2)
 
         if size is not None:
-            interp = F.interpolate(x, size=size, mode='bilinear', align_corners=False)
+            u_interp = F.interpolate(u, size=size, mode='bilinear', align_corners=False)
         else:
-            interp = F.interpolate(x, scale_factor=scale_factor, mode='bilinear', align_corners=False)
-        
-        x0 = interp[..., 0:1, :, :]  # time component
-        x_space = interp[..., 1:, :, :]  # space components
-        
-        space_norm_sq = torch.sum(x_space**2, dim=-3, keepdim=True)
-        x0_corrected = torch.sqrt(1 + space_norm_sq)
-        result = torch.cat([x0_corrected, x_space], dim=-3)
-        
-        if permute_out:
-            result = result.permute(0,2,3,1)
-        return result
+            u_interp = F.interpolate(u, scale_factor=scale_factor, mode='bilinear', align_corners=False)
+
+        # 3. back to BHWC
+        u_interp = u_interp.permute(0, 2, 3, 1)
+
+        # 4. map back to manifold
+        return self.manifold.expmap0(u_interp)

@@ -18,8 +18,9 @@ from torchvision import transforms
 from torchvision.datasets import VOCSegmentation
 from torchmetrics.classification import MulticlassJaccardIndex
 
-import seg_models 
 from lib.geoopt.optim import RiemannianAdam 
+from segmentation.fpn import FPN, HyperbolicFPN
+from segmentation.erfnet import ERFNet 
 
 import wandb
 import optuna
@@ -185,7 +186,6 @@ class Trainer:
             outputs = self.model(images)
             loss = F.cross_entropy(outputs, masks, ignore_index=255)
             
-            # Calculate IoU
             self.train_iou.update(outputs.argmax(dim=1), masks)
             
             loss.backward()
@@ -193,8 +193,7 @@ class Trainer:
             
             total_loss += loss.item()
             
-            # Log batch metrics
-            if self.use_wandb and batch_idx % 10 == 0:  # Log every 10 batches
+            if self.use_wandb and batch_idx % 10 == 0:  
                 wandb.log({
                     'batch/train_loss': loss.item(),
                 })
@@ -220,7 +219,6 @@ class Trainer:
                 outputs = self.model(images)
                 loss = F.cross_entropy(outputs, masks, ignore_index=255)
                 
-                # Calculate IoU
                 self.val_iou.update(outputs.argmax(dim=1), masks)
                 
                 total_loss += loss.item()
@@ -326,16 +324,19 @@ def run_training(args, trial=None):
 
     # Initialize model based on arguments
     if args.model_type == 'hyperbolic':
-        model = seg_models.HyperbolicFPN(
+        model = HyperbolicFPN(
             num_classes=args.num_classes,
             checkpoint_path=args.pretrained_checkpoint_path
         )
     else:
-        model = seg_models.FPN(
-            backbone=args.backbone,
-            num_classes=args.num_classes, 
-            pretrained=args.pretrained
+        model = ERFNet(
+            num_classes=args.num_classes,
         )
+        # model = FPN(
+        #     backbone=args.backbone,
+        #     num_classes=args.num_classes, 
+        #     pretrained=args.pretrained
+        # )
         
     
     trainer = Trainer(model, device, args)
@@ -363,6 +364,8 @@ def run_training(args, trial=None):
             
             if iou_ratio < args.prune_threshold and epoch >= args.prune_patience:
                 print(f"Trial pruned at epoch {epoch+1} with val_iou/train_iou = {iou_ratio:.4f}")
+                if not args.no_wandb:
+                    wandb.finish()
                 raise optuna.TrialPruned()
         
         # Log metrics to wandb
