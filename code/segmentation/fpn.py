@@ -5,7 +5,7 @@ from torchvision.models import resnet18, resnet34, resnet50, resnet101
 
 from lib.models.resnet import Lorentz_resnet18_wrapper
 from lib.lorentz.manifold import CustomLorentz
-from lib.lorentz.layers import LorentzConv2d, LorentzMLR
+from lib.lorentz.layers import LorentzMLR
 from lib.lorentz.blocks.layer_blocks import LConv2d_Block
 
 
@@ -101,7 +101,6 @@ class HyperbolicFPN(nn.Module):
         if checkpoint_path:
             checkpoint = torch.load(checkpoint_path)
             weights = checkpoint['model']
-            # self.backbone.load_state_dict(weights, strict=True)
             self.backbone.load_state_dict(weights, strict=False)
 
         self.feature_channels = [65, 129, 257, 513]
@@ -146,9 +145,9 @@ class HyperbolicFPN(nn.Module):
         c1, c2, c3, c4 = self.backbone(x, return_features=True)
         
         p4 = self.lateral4(c4)
-        p3 = self.manifold.pt_addition(self.lateral3(c3), self.interpolate(p4, scale_factor=2, method='hyperbolic'))
-        p2 = self.manifold.pt_addition(self.lateral2(c2), self.interpolate(p3, scale_factor=2, method='hyperbolic'))
-        p1 = self.manifold.pt_addition(self.lateral1(c1), self.interpolate(p2, scale_factor=2, method='hyperbolic'))
+        p3 = self.manifold.pt_addition(self.lateral3(c3), self.interpolate(p4, scale_factor=2, method='nearest'))
+        p2 = self.manifold.pt_addition(self.lateral2(c2), self.interpolate(p3, scale_factor=2, method='nearest'))
+        p1 = self.manifold.pt_addition(self.lateral1(c1), self.interpolate(p2, scale_factor=2, method='nearest'))
         
         p4 = self.fpn4(p4)
         p3 = self.fpn3(p3)
