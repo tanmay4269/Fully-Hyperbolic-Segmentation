@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam, SGD
-from torch.optim.lr_scheduler import MultiStepLR
+from torch.optim.lr_scheduler import MultiStepLR, PolynomialLR, ReduceLROnPlateau
 
 from segmentation.datasets.pascal_voc import VOCDataset
 from segmentation.datasets.cityscapes import CityscapesDataset
@@ -79,13 +79,25 @@ def get_args():
     parser.add_argument('--weight-decay', type=float, default=1e-4,
                       help='Weight decay for optimizer')
     
-    parser.add_argument('--use-lr-scheduler', action='store_true',
-                        help="If learning rate should be reduced after step epochs using a LR scheduler.")
-    parser.add_argument('--lr-scheduler-milestones', default=[40, 100, 125], type=int, nargs="+",
-                        help="Milestones of LR scheduler.")
-    parser.add_argument('--lr-scheduler-gamma', default=0.2, type=float,
-                        help="Gamma parameter of LR scheduler.")
+    parser.add_argument('--lr-scheduler', type=str, default='multistep',
+                        choices=['multistep', 'poly', 'reduce-on-plateau', 'none'],
+                        help="Type of learning rate scheduler to use.")
     
+    # MultiStepLR parameters
+    parser.add_argument('--scheduler-multistep-milestones', default=[40, 100, 125], type=int, nargs="+",
+                        help="Milestones for MultiStepLR scheduler.")
+    parser.add_argument('--scheduler-multistep-gamma', default=0.2, type=float,
+                        help="Gamma parameter for MultiStepLR scheduler.")
+
+    # PolynomialLR parameters
+    parser.add_argument('--scheduler-poly-power', type=float, default=0.9,
+                        help="Power for PolynomialLR scheduler.")
+
+    # ReduceLROnPlateau parameters
+    parser.add_argument('--scheduler-rop-patience', type=int, default=10,
+                        help="Patience for ReduceLROnPlateau scheduler.")
+    parser.add_argument('--scheduler-rop-factor', type=float, default=0.1,
+                        help="Factor for ReduceLROnPlateau scheduler.")
     
     # Wandb parameters
     parser.add_argument('--use-wandb', action='store_true',
@@ -146,11 +158,24 @@ class Trainer:
                 self.optimizer = SGD(param_groups, weight_decay=args.weight_decay)
         
         self.lr_scheduler = None
-        if args.use_lr_scheduler:
+        if args.lr_scheduler == 'multistep':
             self.lr_scheduler = MultiStepLR(
                 self.optimizer, 
-                milestones=args.lr_scheduler_milestones, 
-                gamma=args.lr_scheduler_gamma
+                milestones=args.scheduler_multistep_milestones, 
+                gamma=args.scheduler_multistep_gamma
+            )
+        elif args.lr_scheduler == 'poly':
+            self.lr_scheduler = PolynomialLR(
+                self.optimizer,
+                total_iters=args.num_epochs,
+                power=args.scheduler_poly_power
+            )
+        elif args.lr_scheduler == 'reduce-on-plateau':
+            self.lr_scheduler = ReduceLROnPlateau(
+                self.optimizer,
+                mode='max',
+                factor=args.scheduler_rop_factor,
+                patience=args.scheduler_rop_patience,
             )
         
         # Initialize IoU metric
@@ -374,7 +399,10 @@ def run_training(args, trial=None):
         print(f"Validation Loss: {val_loss:.4f}, Validation mIoU: {val_iou:.4f}")
         
         if trainer.lr_scheduler is not None:
-            trainer.lr_scheduler.step()
+            if isinstance(trainer.lr_scheduler, ReduceLROnPlateau):
+                trainer.lr_scheduler.step(val_iou)
+            else:
+                trainer.lr_scheduler.step()
         
         # Pruning if Optuna is enabled
         if trial is not None and train_iou > 0:
