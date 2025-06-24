@@ -24,6 +24,36 @@ from segmentation.models.erfnet import ERFNet
 import wandb
 import optuna
 
+from tqdm import tqdm
+
+
+def dice_loss(pred, target, num_classes, ignore_index=255):
+    """
+    Calculates the multi-class Dice loss.
+    """
+    pred_softmax = F.softmax(pred, dim=1)
+    
+    # Create a mask for valid pixels
+    valid_mask = target != ignore_index
+    
+    # Mask out ignored pixels from target for one-hot encoding
+    masked_target = target.clone()
+    masked_target[~valid_mask] = 0
+    
+    target_one_hot = F.one_hot(masked_target.long(), num_classes=num_classes).permute(0, 3, 1, 2).float()
+    
+    # Mask out ignored pixels from predictions and one-hot target
+    valid_mask = valid_mask.unsqueeze(1)
+    pred_softmax = pred_softmax * valid_mask
+    target_one_hot = target_one_hot * valid_mask
+    
+    dims = (0, 2, 3)
+    intersection = torch.sum(pred_softmax * target_one_hot, dims)
+    cardinality = torch.sum(pred_softmax + target_one_hot, dims)
+    
+    dice_score = (2. * intersection + 1e-7) / (cardinality + 1e-7)
+    return 1. - dice_score.mean()
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='Training script for segmentation models')
@@ -79,6 +109,11 @@ def get_args():
     parser.add_argument('--weight-decay', type=float, default=1e-4,
                       help='Weight decay for optimizer')
     
+    parser.add_argument('--dice-weight', type=float, default=0.5,
+                        help='Weight for Dice loss in the total loss function.')
+    parser.add_argument('--class-balancing', action='store_true',
+                        help='Use class balancing by weighting the loss.')
+    
     parser.add_argument('--lr-scheduler', type=str, default='multistep',
                         choices=['multistep', 'poly', 'reduce-on-plateau', 'none'],
                         help="Type of learning rate scheduler to use.")
@@ -124,13 +159,15 @@ def get_args():
         
 
 class Trainer:
-    def __init__(self, model, device, args):
+    def __init__(self, model, device, args, class_weights=None):
         self.model = model.to(device)
         self.device = device
         self.num_classes = args.num_classes
         self.use_hyperbolic = args.manifold == 'hyperbolic'
         self.debug = args.debug
         self.use_wandb = args.use_wandb
+        self.dice_weight = args.dice_weight
+        self.class_weights = class_weights
         
         # Separate backbone and head parameters for different learning rates
         backbone_params = []
@@ -188,6 +225,20 @@ class Trainer:
             ignore_index=255
         ).to(device)
 
+    def compute_loss(self, outputs, masks):
+        """
+        Computes the total loss, optionally combining Cross-Entropy and Dice loss.
+        """
+        ce_loss = F.cross_entropy(outputs, masks, weight=self.class_weights, ignore_index=255)
+        
+        if self.dice_weight > 0:
+            dl = dice_loss(outputs, masks, self.num_classes, ignore_index=255)
+            loss = (1 - self.dice_weight) * ce_loss + self.dice_weight * dl
+        else:
+            loss = ce_loss
+            
+        return loss
+
     def train_epoch(self, dataloader):
         self.model.train()
         total_loss = 0
@@ -199,7 +250,7 @@ class Trainer:
             
             self.optimizer.zero_grad()
             outputs = self.model(images)
-            loss = F.cross_entropy(outputs, masks, ignore_index=255)
+            loss = self.compute_loss(outputs, masks)
             
             self.train_iou.update(outputs.argmax(dim=1), masks)
             
@@ -232,7 +283,7 @@ class Trainer:
                 masks = masks.to(self.device)
                 
                 outputs = self.model(images)
-                loss = F.cross_entropy(outputs, masks, ignore_index=255)
+                loss = self.compute_loss(outputs, masks)
                 
                 self.val_iou.update(outputs.argmax(dim=1), masks)
                 
@@ -286,6 +337,30 @@ def run_training(args, trial=None):
     # Create checkpoint directory if needed
     if args.save_model:
         os.makedirs(args.checkpoint_dir, exist_ok=True)
+
+    class_weights = None
+    if args.class_balancing:
+        print("Calculating class weights...")
+        if args.dataset == 'cityscapes':
+            # Create a temporary dataset without augmentations to calculate weights
+            temp_dataset = CityscapesDataset(root=args.data_root, split='train')
+            
+            # Using ENet-style class weighting
+            class_counts = torch.zeros(args.num_classes)
+            for _, mask in tqdm(temp_dataset, desc="Counting classes"):
+                mask_flat = mask.flatten()
+                for c in range(args.num_classes):
+                    class_counts[c] += (mask_flat == c).sum()
+            
+            # w_class = 1 / ln(1.02 + p_class)
+            class_weights = 1.0 / torch.log(1.02 + class_counts / class_counts.sum())
+            class_weights = class_weights.to(device)
+            print(f"Class weights: {class_weights}")
+
+        elif args.dataset == 'pascal-voc':
+            # Similar logic for Pascal VOC if needed
+            print("Class balancing for Pascal VOC is not implemented yet.")
+            pass
 
     # Define albumentations transforms for training
     if args.debug:
@@ -383,7 +458,7 @@ def run_training(args, trial=None):
         # )
         
     
-    trainer = Trainer(model, device, args)
+    trainer = Trainer(model, device, args, class_weights=class_weights)
 
     # Training loop
     num_epochs = args.num_epochs
