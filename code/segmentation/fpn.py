@@ -92,8 +92,9 @@ class FPN(nn.Module):
 
 
 class HyperbolicFPN(nn.Module):
-    def __init__(self, num_classes, checkpoint_path=None):
+    def __init__(self, num_classes, checkpoint_path=None, use_batch_norm=False):
         super().__init__()
+        self.use_batch_norm = use_batch_norm
         self.manifold = CustomLorentz(k=1.0, learnable=False)
         self.backbone = Lorentz_resnet18_wrapper(manifold=self.manifold)
 
@@ -138,7 +139,7 @@ class HyperbolicFPN(nn.Module):
             padding=padding,
             bias=True,
             activation=torch.relu,
-            normalization="batch_norm"
+            normalization="batch_norm" if self.use_batch_norm else None
         )
 
     def forward(self, x):

@@ -30,7 +30,10 @@ def get_args():
     parser = argparse.ArgumentParser(description='Training script for segmentation models')
     
     # Data parameters
-    parser.add_argument('--data-root', type=str, default='data/pascal_voc',
+    parser.add_argument('--dataset', type=str, default='cityscapes',
+                      choices=['pascal-voc', 'cityscapes'],
+                      help='Dataset to use for training')
+    parser.add_argument('--data-root', type=str, default='data/cityscapes',
                       help='Root directory for dataset')
     parser.add_argument('--img-size', type=int, nargs=2, default=[256, 256],
                       help='Input image size (height, width)')
@@ -50,13 +53,15 @@ def get_args():
     parser.add_argument('--manifold', type=str, default='hyperbolic', 
                         choices=['euclidean', 'hyperbolic'],
                         help='Type of manifold that the model is defined on')
+    parser.add_argument('--use-batch-norm', action='store_true',
+                        help='Use batch normalization in the model')
+    parser.add_argument('--num-classes', type=int, default=21,
+                      help='Number of classes for segmentation')
     parser.add_argument('--backbone', type=str, default='resnet18',
                       help='Backbone architecture for FPN')
     parser.add_argument('--pretrained', action='store_true',
                         help='Use pretrained weights for the backbone')
     parser.add_argument('--pretrained-checkpoint-path', type=str, default=None)
-    parser.add_argument('--num-classes', type=int, default=21,
-                      help='Number of classes for segmentation')
     
     # Training parameters
     parser.add_argument('--batch-size', type=int, default=4,
@@ -82,14 +87,14 @@ def get_args():
     
     
     # Wandb parameters
+    parser.add_argument('--use-wandb', action='store_true',
+                      help='Enable Weights & Biases logging')
     parser.add_argument('--wandb-project', type=str, default='fully-hyperbolic-segmentation',
                       help='Weights & Biases project name')
     parser.add_argument('--wandb-entity', type=str, default=None,
                       help='Weights & Biases entity (username or team name)')
     parser.add_argument('--wandb-name', type=str, default=None,
                       help='Name of the run (optional)')
-    parser.add_argument('--no-wandb', action='store_true',
-                      help='Disable Weights & Biases logging')
     
     # Optuna parameters
     parser.add_argument('--use-optuna', action='store_true',
@@ -139,7 +144,7 @@ class Trainer:
         self.num_classes = args.num_classes
         self.use_hyperbolic = args.manifold == 'hyperbolic'
         self.debug = args.debug
-        self.use_wandb = not args.no_wandb
+        self.use_wandb = args.use_wandb
         
         # Separate backbone and head parameters for different learning rates
         backbone_params = []
@@ -265,7 +270,7 @@ def run_training(args, trial=None):
     print(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
 
     # Initialize wandb
-    if not args.no_wandb:
+    if args.use_wandb:
         wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
@@ -337,7 +342,8 @@ def run_training(args, trial=None):
     if args.manifold == 'hyperbolic':
         model = HyperbolicFPN(
             num_classes=args.num_classes,
-            checkpoint_path=args.pretrained_checkpoint_path
+            checkpoint_path=args.pretrained_checkpoint_path,
+            use_batch_norm=args.use_batch_norm
         )
     else:
         model = ERFNet(
@@ -375,12 +381,12 @@ def run_training(args, trial=None):
             
             if iou_ratio < args.prune_threshold and epoch >= args.prune_patience:
                 print(f"Trial pruned at epoch {epoch+1} with val_iou/train_iou = {iou_ratio:.4f}")
-                if not args.no_wandb:
+                if args.use_wandb:
                     wandb.finish()
                 raise optuna.TrialPruned()
         
         # Log metrics to wandb
-        if not args.no_wandb:
+        if args.use_wandb:
             wandb.log({
                 'epoch': epoch + 1,
                 'train/loss': train_loss,
@@ -405,7 +411,7 @@ def run_training(args, trial=None):
             print(f"Saved model checkpoint to {checkpoint_path}")
             
             # Log model checkpoint to wandb
-            if not args.no_wandb:
+            if args.use_wandb:
                 wandb.save(checkpoint_path)
         
         # Save best model based on IoU
@@ -424,13 +430,13 @@ def run_training(args, trial=None):
             print(f"Saved best model checkpoint to {checkpoint_path} (best IoU)")
             
             # Log best model to wandb
-            if not args.no_wandb:
+            if args.use_wandb:
                 wandb.save(checkpoint_path)
                 wandb.run.summary['best_val_iou'] = best_val_iou
                 wandb.run.summary['best_epoch'] = epoch + 1
 
     # Close wandb run
-    if not args.no_wandb:
+    if args.use_wandb:
         wandb.finish()
     
     return best_val_iou
@@ -452,7 +458,7 @@ def main():
             trial_args.weight_decay = trial.suggest_float('weight_decay', 1e-6, 1e-3, log=True)
 
             # Setting a unique name for wandb run if it's enabled
-            if not trial_args.no_wandb:
+            if trial_args.use_wandb:
                 trial_args.wandb_name = f"trial-{trial.number}"
 
             print(f"\nStarting trial {trial.number} with params: {trial.params}")
