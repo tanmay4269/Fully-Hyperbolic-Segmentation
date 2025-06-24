@@ -55,6 +55,8 @@ def get_args():
                         help='Type of manifold that the model is defined on')
     parser.add_argument('--use-batch-norm', action='store_true',
                         help='Use batch normalization in the model')
+    parser.add_argument('--use-mobius-addition', action='store_true',
+                        help='Use Mobius addition in the model')
     parser.add_argument('--num-classes', type=int, default=21,
                       help='Number of classes for segmentation')
     parser.add_argument('--backbone', type=str, default='resnet18',
@@ -350,7 +352,8 @@ def run_training(args, trial=None):
         model = HyperbolicFPN(
             num_classes=args.num_classes,
             checkpoint_path=args.pretrained_checkpoint_path,
-            use_batch_norm=args.use_batch_norm
+            use_batch_norm=args.use_batch_norm,
+            use_mobius_addition=args.use_mobius_addition
         )
     else:
         model = ERFNet(
