@@ -283,21 +283,28 @@ def run_training(args, trial=None):
         os.makedirs(args.checkpoint_dir, exist_ok=True)
 
     # Define albumentations transforms for training
-    train_transform = A.Compose([
-        A.OneOf([
+    if args.debug:
+        train_transform = A.Compose([
             A.Resize(height=args.img_size[0], width=args.img_size[1]),
-            A.Sequential([
-                A.RandomScale(scale_limit=0.2),
-                A.PadIfNeeded(min_height=args.img_size[0], min_width=args.img_size[1]),
-                A.RandomCrop(height=args.img_size[0], width=args.img_size[1]),
-            ])
-        ], p=1.0),
-        A.HorizontalFlip(p=0.5),
-        A.RandomBrightnessContrast(p=0.2),
-        A.GaussianBlur(p=0.2),
-        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ToTensorV2(),
-    ])
+            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ToTensorV2(),
+        ])
+    else:
+        train_transform = A.Compose([
+            A.OneOf([
+                A.Resize(height=args.img_size[0], width=args.img_size[1]),
+                A.Sequential([
+                    A.RandomScale(scale_limit=0.2),
+                    A.PadIfNeeded(min_height=args.img_size[0], min_width=args.img_size[1]),
+                    A.RandomCrop(height=args.img_size[0], width=args.img_size[1]),
+                ])
+            ], p=1.0),
+            A.HorizontalFlip(p=0.5),
+            A.RandomBrightnessContrast(p=0.2),
+            A.GaussianBlur(p=0.2),
+            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ToTensorV2(),
+        ])
     
     # Define albumentations transforms for validation
     val_transform = A.Compose([
