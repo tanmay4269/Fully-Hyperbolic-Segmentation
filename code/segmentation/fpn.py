@@ -141,13 +141,18 @@ class HyperbolicFPN(nn.Module):
             normalization="batch_norm" if self.use_batch_norm else None
         )
 
-    def forward(self, x):
+    def forward(self, x, use_mobius_addition=False):
         c1, c2, c3, c4 = self.backbone(x, return_features=True)
         
         p4 = self.lateral4(c4)
-        p3 = self.manifold.pt_addition(self.lateral3(c3), self.interpolate(p4, scale_factor=2, method='nearest'))
-        p2 = self.manifold.pt_addition(self.lateral2(c2), self.interpolate(p3, scale_factor=2, method='nearest'))
-        p1 = self.manifold.pt_addition(self.lateral1(c1), self.interpolate(p2, scale_factor=2, method='nearest'))
+        if use_mobius_addition:
+            p3 = self.manifold.pt_addition(self.lateral3(c3), self.interpolate(p4, scale_factor=2, method='nearest'))
+            p2 = self.manifold.pt_addition(self.lateral2(c2), self.interpolate(p3, scale_factor=2, method='nearest'))
+            p1 = self.manifold.pt_addition(self.lateral1(c1), self.interpolate(p2, scale_factor=2, method='nearest'))
+        else:
+            p3 = self.lateral3(c3) + self.interpolate(p4, scale_factor=2, method='nearest')
+            p2 = self.lateral2(c2) + self.interpolate(p3, scale_factor=2, method='nearest')
+            p1 = self.lateral1(c1) + self.interpolate(p2, scale_factor=2, method='nearest')
         
         p4 = self.fpn4(p4)
         p3 = self.fpn3(p3)
@@ -159,7 +164,10 @@ class HyperbolicFPN(nn.Module):
         p3 = self.interpolate(p3, size=(h, w), method='hyperbolic')
         p2 = self.interpolate(p2, size=(h, w), method='hyperbolic')
         
-        fused = self.manifold.pt_addition(p1, self.manifold.pt_addition(p2, self.manifold.pt_addition(p3, p4)))
+        if use_mobius_addition:
+            fused = self.manifold.pt_addition(p1, self.manifold.pt_addition(p2, self.manifold.pt_addition(p3, p4)))
+        else:
+            fused = p1 + p2 + p3 + p4
         
         out = self.classifier(fused)
         out = out.permute(0,3,1,2)
