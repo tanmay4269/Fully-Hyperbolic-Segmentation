@@ -10,85 +10,102 @@ from lib.lorentz.blocks.layer_blocks import LConv2d_Block
 
 
 class FPN(nn.Module):
-    def __init__(self, backbone='resnet34', num_classes=1, pretrained=False):
+    def __init__(self, backbone='resnet18', num_classes=1, pretrained=False, use_batch_norm=True):
         super().__init__()
         
         # Load backbone and get feature channels
         if backbone == 'resnet18':
-            self.backbone = resnet18(pretrained=pretrained)
+            backbone_model = resnet18(pretrained=pretrained)
             self.feature_channels = [64, 128, 256, 512]
         elif backbone == 'resnet34':
-            self.backbone = resnet34(pretrained=pretrained)
+            backbone_model = resnet34(pretrained=pretrained)
             self.feature_channels = [64, 128, 256, 512]
         elif backbone == 'resnet50':
-            self.backbone = resnet50(pretrained=pretrained)
+            backbone_model = resnet50(pretrained=pretrained)
             self.feature_channels = [256, 512, 1024, 2048]
         elif backbone == 'resnet101':
-            self.backbone = resnet101(pretrained=pretrained)
+            backbone_model = resnet101(pretrained=pretrained)
             self.feature_channels = [256, 512, 1024, 2048]
         else:
             raise ValueError(f"Backbone {backbone} not supported")
+
+        self.use_batch_norm = use_batch_norm
         
-        # Remove classifier
-        self.backbone = nn.Sequential(*list(self.backbone.children())[:-2])
+        # Extract backbone layers
+        self.stem = nn.Sequential(*list(backbone_model.children())[:4])
+        self.layer1 = backbone_model.layer1
+        self.layer2 = backbone_model.layer2
+        self.layer3 = backbone_model.layer3
+        self.layer4 = backbone_model.layer4
         
         # FPN components
         self.fpn_channels = 256
         
         # Lateral connections (1x1 conv to reduce channels)
-        self.lateral4 = nn.Conv2d(self.feature_channels[3], self.fpn_channels, 1)
-        self.lateral3 = nn.Conv2d(self.feature_channels[2], self.fpn_channels, 1)
-        self.lateral2 = nn.Conv2d(self.feature_channels[1], self.fpn_channels, 1)
-        self.lateral1 = nn.Conv2d(self.feature_channels[0], self.fpn_channels, 1)
+        self.lateral4 = nn.Conv2d(self.feature_channels[3], self.fpn_channels, kernel_size=1)
+        self.lateral3 = nn.Conv2d(self.feature_channels[2], self.fpn_channels, kernel_size=1)
+        self.lateral2 = nn.Conv2d(self.feature_channels[1], self.fpn_channels, kernel_size=1)
+        self.lateral1 = nn.Conv2d(self.feature_channels[0], self.fpn_channels, kernel_size=1)
         
         # Final convs after merging
-        self.fpn4 = nn.Conv2d(self.fpn_channels, self.fpn_channels, 3, padding=1)
-        self.fpn3 = nn.Conv2d(self.fpn_channels, self.fpn_channels, 3, padding=1)
-        self.fpn2 = nn.Conv2d(self.fpn_channels, self.fpn_channels, 3, padding=1)
-        self.fpn1 = nn.Conv2d(self.fpn_channels, self.fpn_channels, 3, padding=1)
+        self.fpn4 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
+        self.fpn3 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
+        self.fpn2 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
+        self.fpn1 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
         
         # Final classifier
-        self.classifier = nn.Conv2d(self.fpn_channels, num_classes, 1)
+        self.classifier = nn.Conv2d(self.fpn_channels * 4, num_classes, kernel_size=1)
+
+    def conv_layer(self, in_channels, out_channels, kernel_size, padding):
+        layers = [
+            nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, padding=padding),
+        ]
+        if self.use_batch_norm:
+            layers.append(nn.BatchNorm2d(out_channels))
+        layers.append(nn.ReLU(inplace=True))
+        return nn.Sequential(*layers)
 
     def forward(self, x):
         # Extract features from backbone
-        features = []
-        for i, module in enumerate(self.backbone):
-            x = module(x)
-            if i in [4, 5, 6, 7]:  # layer1, layer2, layer3, layer4
-                features.append(x)
-        
-        c1, c2, c3, c4 = features
+        x = self.stem(x)
+        c1 = self.layer1(x)
+        c2 = self.layer2(c1)
+        c3 = self.layer3(c2)
+        c4 = self.layer4(c3)
         
         # Build FPN
         # Top-down pathway
         p4 = self.lateral4(c4)
-        p3 = self.lateral3(c3) + F.interpolate(p4, scale_factor=2, mode='nearest')
-        p2 = self.lateral2(c2) + F.interpolate(p3, scale_factor=2, mode='nearest')
-        p1 = self.lateral1(c1) + F.interpolate(p2, scale_factor=2, mode='nearest')
+        p3 = self.lateral3(c3) + self.interpolate(p4, scale_factor=2, mode='nearest')
+        p2 = self.lateral2(c2) + self.interpolate(p3, scale_factor=2, mode='nearest')
+        p1 = self.lateral1(c1) + self.interpolate(p2, scale_factor=2, mode='nearest')
         
         # Apply final convolutions
-        p4 = self.fpn4(p4)
-        p3 = self.fpn3(p3)
-        p2 = self.fpn2(p2)
         p1 = self.fpn1(p1)
+        p2 = self.fpn2(p2)
+        p3 = self.fpn3(p3)
+        p4 = self.fpn4(p4)
         
-        # Upsample all to same size and add
+        # Upsample all to same size and concatenate
         _, _, h, w = p1.shape
-        p4_up = F.interpolate(p4, size=(h, w), mode='bilinear', align_corners=False)
-        p3_up = F.interpolate(p3, size=(h, w), mode='bilinear', align_corners=False)
-        p2_up = F.interpolate(p2, size=(h, w), mode='bilinear', align_corners=False)
+        p2_up = self.interpolate(p2, size=(h, w), mode='bilinear')
+        p3_up = self.interpolate(p3, size=(h, w), mode='bilinear')
+        p4_up = self.interpolate(p4, size=(h, w), mode='bilinear')
         
         # Combine features
-        fused = p1 + p2_up + p3_up + p4_up
+        fused = torch.cat([p1, p2_up, p3_up, p4_up], dim=1)
         
         # Final classification
         out = self.classifier(fused)
         
         # Upsample to input size
-        out = F.interpolate(out, scale_factor=4, mode='bilinear', align_corners=False)
+        out = self.interpolate(out, scale_factor=4, mode='bilinear')
         
         return out
+
+    def interpolate(self, x, size=None, scale_factor=None, mode='bilinear'):
+        align_corners = False if mode == 'bilinear' else None
+        return F.interpolate(x, size=size, scale_factor=scale_factor, mode=mode, align_corners=align_corners)
 
 
 class HyperbolicFPN(nn.Module):
@@ -121,7 +138,7 @@ class HyperbolicFPN(nn.Module):
         self.fpn1 = self.conv_layer(self.fpn_channels, self.fpn_channels, kernel_size=3, padding=1)
         
         # Final classifier
-        self.classifier = LorentzMLR(self.manifold, self.fpn_channels, num_classes)
+        self.classifier = LorentzMLR(self.manifold, self.fpn_channels * 4, num_classes)
         
     def conv_layer(
         self, 
@@ -148,28 +165,25 @@ class HyperbolicFPN(nn.Module):
         
         p4 = self.lateral4(c4)
         if self.use_mobius_addition:
-            p3 = self.manifold.pt_addition(self.lateral3(c3), self.interpolate(p4, scale_factor=2, method='nearest'))
-            p2 = self.manifold.pt_addition(self.lateral2(c2), self.interpolate(p3, scale_factor=2, method='nearest'))
-            p1 = self.manifold.pt_addition(self.lateral1(c1), self.interpolate(p2, scale_factor=2, method='nearest'))
+            p3 = self.manifold.pt_addition(self.lateral3(c3), self.interpolate(p4, scale_factor=2, mode='nearest'))
+            p2 = self.manifold.pt_addition(self.lateral2(c2), self.interpolate(p3, scale_factor=2, mode='nearest'))
+            p1 = self.manifold.pt_addition(self.lateral1(c1), self.interpolate(p2, scale_factor=2, mode='nearest'))
         else:
-            p3 = self.lateral3(c3) + self.interpolate(p4, scale_factor=2, method='nearest')
-            p2 = self.lateral2(c2) + self.interpolate(p3, scale_factor=2, method='nearest')
-            p1 = self.lateral1(c1) + self.interpolate(p2, scale_factor=2, method='nearest')
+            p3 = self.lateral3(c3) + self.interpolate(p4, scale_factor=2, mode='nearest')
+            p2 = self.lateral2(c2) + self.interpolate(p3, scale_factor=2, mode='nearest')
+            p1 = self.lateral1(c1) + self.interpolate(p2, scale_factor=2, mode='nearest')
         
-        p4 = self.fpn4(p4)
-        p3 = self.fpn3(p3)
-        p2 = self.fpn2(p2)
         p1 = self.fpn1(p1)
+        p2 = self.fpn2(p2)
+        p3 = self.fpn3(p3)
+        p4 = self.fpn4(p4)
         
         _, h, w, _ = p1.shape
-        p4 = self.interpolate(p4, size=(h, w), method='hyperbolic')
-        p3 = self.interpolate(p3, size=(h, w), method='hyperbolic')
         p2 = self.interpolate(p2, size=(h, w), method='hyperbolic')
-        
-        if self.use_mobius_addition:
-            fused = self.manifold.pt_addition(p1, self.manifold.pt_addition(p2, self.manifold.pt_addition(p3, p4)))
-        else:
-            fused = p1 + p2 + p3 + p4
+        p3 = self.interpolate(p3, size=(h, w), method='hyperbolic')
+        p4 = self.interpolate(p4, size=(h, w), method='hyperbolic')
+
+        fused = torch.cat([p1, p2, p3, p4], dim=-1)
         
         out = self.classifier(fused)
         out = out.permute(0,3,1,2)

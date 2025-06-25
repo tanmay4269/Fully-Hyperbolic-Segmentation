@@ -495,14 +495,16 @@ def run_training(args, trial=None):
             use_mobius_addition=args.use_mobius_addition
         )
     else:
-        model = ERFNet(
-            num_classes=args.num_classes,
-        )
-        # model = FPN(
-        #     backbone=args.backbone,
-        #     num_classes=args.num_classes, 
-        #     pretrained=args.pretrained
+        # model = ERFNet(
+        #     num_classes=args.num_classes,
         # )
+
+        model = FPN(
+            backbone=args.backbone,
+            num_classes=args.num_classes, 
+            pretrained=args.pretrained,
+            use_batch_norm=args.use_batch_norm
+        )
         
     
     trainer = Trainer(model, device, args, class_weights=class_weights)
