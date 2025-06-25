@@ -117,6 +117,9 @@ def get_args():
     parser.add_argument('--weight-decay', type=float, default=1e-4,
                       help='Weight decay for optimizer')
     
+    parser.add_argument('--use-amp', action='store_true',
+                        help='Use Automatic Mixed Precision (AMP) for training.')
+    
     parser.add_argument('--dice-weight', type=float, default=0.5,
                         help='Weight for Dice loss in the total loss function.')
     parser.add_argument('--class-balancing', action='store_true',
@@ -176,6 +179,9 @@ class Trainer:
         self.use_wandb = args.use_wandb
         self.dice_weight = args.dice_weight
         self.class_weights = class_weights
+        self.use_amp = args.use_amp and self.device.type == 'cuda'
+        
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
         
         # Separate backbone and head parameters for different learning rates
         backbone_params = []
@@ -257,13 +263,15 @@ class Trainer:
             masks = masks.to(self.device)
             
             self.optimizer.zero_grad()
-            outputs = self.model(images)
-            loss = self.compute_loss(outputs, masks)
+            with torch.cuda.amp.autocast(enabled=self.use_amp):
+                outputs = self.model(images)
+                loss = self.compute_loss(outputs, masks)
             
             self.train_iou.update(outputs.argmax(dim=1), masks)
             
-            loss.backward()
-            self.optimizer.step()
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             
             total_loss += loss.item()
             
@@ -290,8 +298,9 @@ class Trainer:
                 images = images.to(self.device)
                 masks = masks.to(self.device)
                 
-                outputs = self.model(images)
-                loss = self.compute_loss(outputs, masks)
+                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                    outputs = self.model(images)
+                    loss = self.compute_loss(outputs, masks)
                 
                 self.val_iou.update(outputs.argmax(dim=1), masks)
                 
@@ -355,6 +364,8 @@ def run_training(args, trial=None):
     # Setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device: {device}")
+    if args.use_amp and device.type == 'cuda':
+        logging.info("Using Automatic Mixed Precision (AMP).")
     logging.info(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
 
     # Set number of classes based on dataset
@@ -409,6 +420,7 @@ def run_training(args, trial=None):
         ])
     else:
         train_transform = A.Compose([
+            A.Resize(height=args.img_size[0], width=args.img_size[1]),
             A.Sequential([
                 A.RandomScale(scale_limit=(-0.5, 1.0)),
                 A.PadIfNeeded(min_height=args.img_size[0], min_width=args.img_size[1]),
