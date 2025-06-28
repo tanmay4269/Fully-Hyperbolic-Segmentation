@@ -32,8 +32,26 @@ class CityscapesDataset:
         
         self.num_classes = 19
         self.id_to_train_id = {
-            7: 0, 8: 1, 11: 2, 12: 3, 13: 4, 17: 5, 19: 6, 20: 7, 21: 8, 22: 9,
-            23: 10, 24: 11, 25: 12, 26: 13, 27: 14, 28: 15, 31: 16, 32: 17, 33: 18
+            7: 0, 
+            8: 1, 
+            11: 2, 
+            12: 3, 
+            13: 4, 
+            17: 5, 
+            19: 6, 
+            20: 7, 
+            21: 8, 
+            22: 9,
+            23: 10, 
+            24: 11, 
+            25: 12,
+            26: 13, 
+            27: 14, 
+            28: 15, 
+            31: 16, 
+            32: 17, 
+            33: 18,
+            255: 255
         }
 
         self.indices = list(range(len(self.dataset)))
@@ -44,14 +62,14 @@ class CityscapesDataset:
     def _get_cache_path(self):
         """Generate a unique cache path based on dataset parameters."""
         # Create a hash of the relevant parameters
-        params = f"{self.root}_{self.split}_{self.subsample_percentage}_{self.num_classes}"
+        params = f"{self.root}_{self.split}_{self.num_classes}"
         param_hash = hashlib.md5(params.encode()).hexdigest()
         
         # Create cache directory if it doesn't exist
         cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'cache')
         os.makedirs(cache_dir, exist_ok=True)
         
-        return os.path.join(cache_dir, f"cityscapes_analysis_{self.split}_{self.subsample_percentage}_{param_hash}.json")
+        return os.path.join(cache_dir, f"cityscapes_analysis_{self.split}_{param_hash}.json")
 
     def _analyze_and_subsample(self, subsample_percentage):
         """
@@ -61,41 +79,66 @@ class CityscapesDataset:
         """
         cache_path = self._get_cache_path()
         
-        # Try to load from cache first
+        image_pixel_counts = []
+        total_pixel_counts = torch.zeros(self.num_classes, dtype=torch.float64)
+        
+        analysis_cached = False
         if os.path.exists(cache_path):
             try:
                 logging.info(f"Loading cached analysis for {self.split} set from {cache_path}")
                 with open(cache_path, 'r') as f:
                     cache_data = json.load(f)
                 
-                self.indices = cache_data['indices']
-                if 'class_weights' in cache_data and cache_data['class_weights'] is not None:
-                    self.class_weights = torch.tensor(cache_data['class_weights'])
+                # The pixel counts are saved as lists of lists. Convert them back to tensors.
+                image_pixel_counts = [torch.tensor(counts, dtype=torch.int64) for counts in cache_data['image_pixel_counts']]
+                total_pixel_counts = torch.tensor(cache_data['total_pixel_counts'], dtype=torch.float64)
                 
-                logging.info(f"Successfully loaded cached analysis. Dataset size: {len(self.indices)} images.")
-                return
+                if len(image_pixel_counts) == len(self.dataset):
+                    analysis_cached = True
+                    logging.info(f"Successfully loaded cached analysis. Dataset size: {len(image_pixel_counts)} images.")
+                else:
+                    logging.warning("Cached data does not match dataset length. Re-analyzing.")
+
             except Exception as e:
                 logging.warning(f"Failed to load cache: {e}. Performing analysis from scratch.")
-        
-        logging.info(f"Analyzing {self.split} dataset for pixel distribution...")
-        image_pixel_counts = []
-        total_pixel_counts = torch.zeros(self.num_classes, dtype=torch.float64)
 
-        for i in tqdm(range(len(self.dataset)), desc=f"Analyzing {self.split} data"):
-            _, mask = self.dataset[i]
-            mask_np = np.array(mask)
-            mask_train_id = np.full_like(mask_np, 255, dtype=np.uint8)
-            for k, v in self.id_to_train_id.items():
-                mask_train_id[mask_np == k] = v
+        if not analysis_cached:
+            logging.info(f"Analyzing {self.split} dataset for pixel distribution...")
             
-            mask_tensor = torch.from_numpy(mask_train_id)
+            # This mapping can be done once
+            mapping = {k: v for k, v in self.id_to_train_id.items()}
             
-            counts = torch.zeros(self.num_classes, dtype=torch.int64)
-            for c in range(self.num_classes):
-                counts[c] = (mask_tensor == c).sum()
+            for i in tqdm(range(len(self.dataset)), desc=f"Analyzing {self.split} data"):
+                _, mask = self.dataset[i]
+                mask_np = np.array(mask)
+                
+                # Vectorized mapping
+                mask_train_id = np.full_like(mask_np, 255, dtype=np.uint8)
+                for k, v in mapping.items():
+                    mask_train_id[mask_np == k] = v
+                
+                mask_tensor = torch.from_numpy(mask_train_id)
+                
+                # Vectorized counting
+                counts = torch.bincount(mask_tensor.flatten(), minlength=self.num_classes + 1)
+                image_pixel_counts.append(counts[:self.num_classes].long())
+
+            total_pixel_counts = torch.stack(image_pixel_counts).sum(dim=0).double()
             
-            image_pixel_counts.append(counts)
-            total_pixel_counts += counts
+            # Save to cache
+            try:
+                # convert tensors to lists for json serialization
+                cache_data = {
+                    'image_pixel_counts': [counts.tolist() for counts in image_pixel_counts],
+                    'total_pixel_counts': total_pixel_counts.tolist()
+                }
+                
+                with open(cache_path, 'w') as f:
+                    json.dump(cache_data, f)
+                
+                logging.info(f"Analysis results cached to {cache_path}")
+            except Exception as e:
+                logging.warning(f"Failed to cache analysis results: {e}")
 
         selected_indices = list(range(len(self.dataset)))
         
@@ -182,20 +225,6 @@ class CityscapesDataset:
                 logging.info(f"Class weights calculated: {self.class_weights}")
             else:
                 logging.warning("No labeled pixels found to calculate class weights.")
-        
-        # Save to cache
-        try:
-            cache_data = {
-                'indices': self.indices,
-                'class_weights': self.class_weights.tolist() if self.class_weights is not None else None
-            }
-            
-            with open(cache_path, 'w') as f:
-                json.dump(cache_data, f)
-            
-            logging.info(f"Analysis results cached to {cache_path}")
-        except Exception as e:
-            logging.warning(f"Failed to cache analysis results: {e}")
 
     def __len__(self):
         """
