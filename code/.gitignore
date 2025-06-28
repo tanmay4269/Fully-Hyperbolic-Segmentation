@@ -2,3 +2,4 @@ logs
 wandb
 *.log
 expt*.sh
+cache

@@ -179,9 +179,9 @@ class HyperbolicFPN(nn.Module):
         p4 = self.fpn4(p4)
         
         _, h, w, _ = p1.shape
-        p2 = self.interpolate(p2, size=(h, w), method='hyperbolic')
-        p3 = self.interpolate(p3, size=(h, w), method='hyperbolic')
-        p4 = self.interpolate(p4, size=(h, w), method='hyperbolic')
+        p2 = self.interpolate(p2, size=(h, w), mode='hyperbolic')
+        p3 = self.interpolate(p3, size=(h, w), mode='hyperbolic')
+        p4 = self.interpolate(p4, size=(h, w), mode='hyperbolic')
 
         fused = torch.cat([p1, p2, p3, p4], dim=-1)
         
@@ -191,17 +191,17 @@ class HyperbolicFPN(nn.Module):
         
         return out
 
-    def interpolate(self, x, size=None, scale_factor=None, method='hyperbolic'):
+    def interpolate(self, x, size=None, scale_factor=None, mode='hyperbolic'):
         B, H, W, C = x.shape
         if size is not None and size[0] == H and size[1] == W:
             return x
 
-        if method == 'hyperbolic':
+        if mode == 'hyperbolic':
             return self._hyperbolic_interp(x, size, scale_factor)
-        elif method == 'nearest':
+        elif mode == 'nearest':
             return self._nearest_interp(x, size, scale_factor)
         else:
-            raise ValueError(f"Invalid interpolation method: {method}")
+            raise ValueError(f"Invalid interpolation mode: {mode}")
     
     def _nearest_interp(self, x, size=None, scale_factor=None):
         B, H, W, C = x.shape

@@ -2,16 +2,18 @@ import os
 import argparse
 from datetime import datetime
 import logging
+import math
+import random
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import MultiStepLR, PolynomialLR, ReduceLROnPlateau
+from torch.utils.data import DataLoader, Subset
 
 from segmentation.datasets.pascal_voc import VOCDataset
 from segmentation.datasets.cityscapes import CityscapesDataset
-from torch.utils.data import DataLoader
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -108,6 +110,9 @@ def get_args():
     parser.add_argument('--num-epochs', type=int, default=200,
                       help='Number of training epochs')
     
+    parser.add_argument('--subsample-percentage', type=float, default=100.0,
+                        help='Percentage of dataset to use for training (0-100). Subsampling is class-balanced.')
+    
     parser.add_argument('--optimizer', type=str, default='sgd',
                       choices=['adam', 'sgd'])
     parser.add_argument('--lr', type=float, default=3e-4,
@@ -122,8 +127,6 @@ def get_args():
     
     parser.add_argument('--dice-weight', type=float, default=0.5,
                         help='Weight for Dice loss in the total loss function.')
-    parser.add_argument('--class-balancing', action='store_true',
-                        help='Use class balancing by weighting the loss.')
     
     parser.add_argument('--lr-scheduler', type=str, default='multistep',
                         choices=['multistep', 'poly', 'reduce-on-plateau', 'none'],
@@ -166,6 +169,9 @@ def get_args():
                         help='Number of epochs to wait before pruning')
     
     args = parser.parse_args()
+    
+    if args.subsample_percentage < 0 or args.subsample_percentage > 100:
+        raise ValueError("--subsample-percentage must be between 0 and 100.")
     return args
         
 
@@ -387,29 +393,10 @@ def run_training(args, trial=None):
     if args.save_model:
         os.makedirs(args.checkpoint_dir, exist_ok=True)
 
-    class_weights = None
-    if args.class_balancing:
-        logging.info("Calculating class weights...")
-        if args.dataset == 'cityscapes':
-            # Create a temporary dataset without augmentations to calculate weights
-            temp_dataset = CityscapesDataset(root=args.data_root, split='train')
-            
-            # Using ENet-style class weighting
-            class_counts = torch.zeros(args.num_classes)
-            for _, mask in tqdm(temp_dataset, desc="Counting classes"):
-                mask_flat = mask.flatten()
-                for c in range(args.num_classes):
-                    class_counts[c] += (mask_flat == c).sum()
-            
-            # w_class = 1 / ln(1.02 + p_class)
-            class_weights = 1.0 / torch.log(1.02 + class_counts / class_counts.sum())
-            class_weights = class_weights.to(device)
-            logging.info(f"Class weights: {class_weights}")
-
-        elif args.dataset == 'pascal-voc':
-            # Similar logic for Pascal VOC if needed
-            logging.info("Class balancing for Pascal VOC is not implemented yet.")
-            pass
+    # Class balancing is now handled inside the dataset class for Cityscapes.
+    # For other datasets, this needs to be implemented in their respective classes.
+    if args.dataset == 'pascal-voc':
+        logging.info("Class balancing for Pascal VOC is not implemented in the dataset class yet.")
 
     # Define albumentations transforms for training
     if args.debug:
@@ -457,11 +444,13 @@ def run_training(args, trial=None):
             root=args.data_root,
             split='train',
             albumentation_transform=train_transform,
+            subsample_percentage=args.subsample_percentage,
         )
         val_dataset = CityscapesDataset(
             root=args.data_root,
             split='val',
             albumentation_transform=val_transform,
+            subsample_percentage=args.subsample_percentage,
         )
     else:
         raise ValueError(f"Unknown dataset: {args.dataset}")
@@ -485,6 +474,11 @@ def run_training(args, trial=None):
             num_workers=args.num_workers,
             pin_memory=True
         )
+
+    # Get class_weights from dataset object and move to device
+    class_weights = None
+    if hasattr(train_dataset, 'class_weights') and train_dataset.class_weights is not None:
+        class_weights= train_dataset.class_weights.to(device)
 
     # Initialize model based on arguments
     if args.manifold == 'hyperbolic':

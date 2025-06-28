@@ -5,20 +5,24 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Segmentation E-Seg",
+            "name": "Python: Segmentation Trainer",
             "type": "debugpy",
             "request": "launch",
-            "program": "segmentation/train.py",
+            "program": "segmentation_trainer.py",
+            "args": [
+                "--dataset cityscapes",
+                "--data-root /home/tvg/Projects/Continual-Learning/data/Cityscapes",
+                "--use-batch-norm --use-mobius-addition",
+                "--img-size 256 512",
+                "--batch-size 32",
+                "--optimizer adam --lr 1.5e-3",
+                "--backbone-lr-factor 0.3",
+                "--lr-scheduler poly",
+                "--num-epochs 160",
+                "--use-amp",
+                "--subsample-percentage 10"
+            ],
             "console": "integratedTerminal",
-            "args": "-c segmentation/config/E-Seg.txt --debug"
-        },
-        {
-            "name": "Custom Segmentation",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "custom_seg_trainer.py",
-            "console": "integratedTerminal",
-            "args": "",
             "justMyCode": false
         }
     ]
