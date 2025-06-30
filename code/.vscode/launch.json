@@ -14,13 +14,14 @@
                 "--data-root", "/home/tvg/Projects/Continual-Learning/data/Cityscapes",
                 "--use-batch-norm", "--use-mobius-addition",
                 "--img-size", "256", "512",
-                "--batch-size", "32",
+                "--batch-size", "2",
                 "--optimizer", "adam", "--lr", "1.5e-3",
                 "--backbone-lr-factor", "0.3",
                 "--lr-scheduler", "poly",
                 "--num-epochs", "160",
                 "--use-amp",
-                "--subsample-percentage", "25"
+                "--subsample-percentage", "100.0",
+                "--debug"
             ],
             "console": "integratedTerminal",
             "justMyCode": false

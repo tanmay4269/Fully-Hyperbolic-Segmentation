@@ -221,7 +221,7 @@ class CityscapesDataset:
             total_pixels = subsampled_pixel_counts.sum()
             if total_pixels > 0:
                 class_freq = subsampled_pixel_counts / total_pixels
-                self.class_weights = 1.0 / torch.log(1.02 + class_freq)
+                self.class_weights = (1.0 / torch.log(1.02 + class_freq)).float()
                 logging.info(f"Class weights calculated: {self.class_weights}")
             else:
                 logging.warning("No labeled pixels found to calculate class weights.")

@@ -477,7 +477,7 @@ def run_training(args, trial=None):
 
     # Get class_weights from dataset object and move to device
     class_weights = None
-    if hasattr(train_dataset, 'class_weights') and train_dataset.class_weights is not None:
+    if not args.debug and hasattr(train_dataset, 'class_weights') and train_dataset.class_weights is not None:
         class_weights= train_dataset.class_weights.to(device)
 
     # Initialize model based on arguments
