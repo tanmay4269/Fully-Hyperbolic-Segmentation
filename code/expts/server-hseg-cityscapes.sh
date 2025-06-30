@@ -1,16 +1,16 @@
 python segmentation_trainer.py \
   --dataset cityscapes \
-  --data-root /home/tvg/Projects/Continual-Learning/data/Cityscapes \
+  --data-root /root/data/LwS-main/datasets/Cityscapes \
   --pretrained-checkpoint-path pretrained_backbone/best_2025-06-19_10-06-40_L-ResNet18.pth \
   --img-size 256 512 \
-  --batch-size 4 \
+  --batch-size 16 \
   --manifold hyperbolic \
   --optimizer adam --lr 1.5e-3 \
   --backbone-lr-factor 0.3 \
   --lr-scheduler poly \
   --num-epochs 160 \
-  --subsample-percentage 10.0 \
+  --subsample-percentage 25.0 \
   --save-checkpoints \
   --wandb \
-  --wandb-name subsample_10_percent_b4_lr_0.0015 \
+  --wandb-name subsample_25_percent_b16_lr_0.0015 \
   --wandb-project hseg-cityscapes
