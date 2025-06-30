@@ -30,6 +30,17 @@ import optuna
 from tqdm import tqdm
 
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 def dice_loss(pred, target, num_classes, ignore_index=255):
     """
     Calculates the multi-class Dice loss.
@@ -61,18 +72,16 @@ def dice_loss(pred, target, num_classes, ignore_index=255):
 def get_args():
     parser = argparse.ArgumentParser(description='Training script for segmentation models')
     
-    # Data parameters
     parser.add_argument('--dataset', type=str, default='cityscapes',
                       choices=['pascal-voc', 'cityscapes'],
                       help='Dataset to use for training')
     parser.add_argument('--data-root', type=str, default='data/cityscapes',
                       help='Root directory for dataset')
-    parser.add_argument('--img-size', type=int, nargs=2, default=[256, 256],
+    parser.add_argument('--img-size', type=int, nargs=2, default=[256, 512],
                       help='Input image size (height, width)')
-    parser.add_argument('--num-workers', type=int, default=2,
+    parser.add_argument('--num-workers', type=int, default=4,
                       help='Number of workers for data loading')
 
-    # Run Management
     parser.add_argument('--run-name', type=str, default=None,
                         help="A name for this run. If not provided, a name will be generated.")
     parser.add_argument('--log-dir', type=str, default='logs',
@@ -82,29 +91,26 @@ def get_args():
     parser.add_argument('--save-interval', type=int, default=10,
                         help="Save a checkpoint every N epochs.")
 
-    # Debug parameters
-    parser.add_argument('--debug', action='store_true',
-                      help='Enable debug mode with limited data and epochs')
-    parser.add_argument('--save-model', action='store_true',
-                      help='Save the best model during training')
+    parser.add_argument('--debug', type=str2bool, nargs='?', const=True, default=False,
+                        help='Enable debug mode with limited data and epochs')
+    parser.add_argument('--save-checkpoints', type=str2bool, nargs='?', const=True, default=False,
+                        help='Save the best model and checkpoints during training')
     
-    # Model parameters
     parser.add_argument('--manifold', type=str, default='hyperbolic', 
                         choices=['euclidean', 'hyperbolic'],
                         help='Type of manifold that the model is defined on')
-    parser.add_argument('--use-batch-norm', action='store_true',
+    parser.add_argument('--batch-norm', type=str2bool, nargs='?', const=True, default=True,
                         help='Use batch normalization in the model')
-    parser.add_argument('--use-mobius-addition', action='store_true',
+    parser.add_argument('--mobius-addition', type=str2bool, nargs='?', const=True, default=True,
                         help='Use Mobius addition in the model')
     parser.add_argument('--num-classes', type=int, default=21,
                       help='Number of classes for segmentation')
     parser.add_argument('--backbone', type=str, default='resnet18',
                       help='Backbone architecture for FPN')
-    parser.add_argument('--pretrained', action='store_true',
+    parser.add_argument('--pretrained', type=str2bool, nargs='?', const=True, default=False,
                         help='Use pretrained weights for the backbone')
     parser.add_argument('--pretrained-checkpoint-path', type=str, default=None)
     
-    # Training parameters
     parser.add_argument('--batch-size', type=int, default=4,
                       help='Batch size for training')
     parser.add_argument('--num-epochs', type=int, default=200,
@@ -117,12 +123,12 @@ def get_args():
                       choices=['adam', 'sgd'])
     parser.add_argument('--lr', type=float, default=3e-4,
                       help='Learning rate')
-    parser.add_argument('--backbone-lr-factor', type=float, default=0.1,
+    parser.add_argument('--backbone-lr-factor', type=float, default=0.3,
                       help='Learning rate factor for the backbone')
     parser.add_argument('--weight-decay', type=float, default=1e-4,
                       help='Weight decay for optimizer')
     
-    parser.add_argument('--use-amp', action='store_true',
+    parser.add_argument('--amp', type=str2bool, nargs='?', const=True, default=True,
                         help='Use Automatic Mixed Precision (AMP) for training.')
     
     parser.add_argument('--dice-weight', type=float, default=0.5,
@@ -132,24 +138,20 @@ def get_args():
                         choices=['multistep', 'poly', 'reduce-on-plateau', 'none'],
                         help="Type of learning rate scheduler to use.")
     
-    # MultiStepLR parameters
     parser.add_argument('--scheduler-multistep-milestones', default=[40, 100, 125], type=int, nargs="+",
                         help="Milestones for MultiStepLR scheduler.")
     parser.add_argument('--scheduler-multistep-gamma', default=0.2, type=float,
                         help="Gamma parameter for MultiStepLR scheduler.")
 
-    # PolynomialLR parameters
     parser.add_argument('--scheduler-poly-power', type=float, default=0.9,
                         help="Power for PolynomialLR scheduler.")
 
-    # ReduceLROnPlateau parameters
     parser.add_argument('--scheduler-rop-patience', type=int, default=10,
                         help="Patience for ReduceLROnPlateau scheduler.")
     parser.add_argument('--scheduler-rop-factor', type=float, default=0.1,
                         help="Factor for ReduceLROnPlateau scheduler.")
     
-    # Wandb parameters
-    parser.add_argument('--use-wandb', action='store_true',
+    parser.add_argument('--wandb', type=str2bool, nargs='?', const=True, default=False,
                       help='Enable Weights & Biases logging')
     parser.add_argument('--wandb-project', type=str, default='fully-hyperbolic-segmentation',
                       help='Weights & Biases project name')
@@ -158,8 +160,7 @@ def get_args():
     parser.add_argument('--wandb-name', type=str, default=None,
                       help='Name of the run (optional)')
     
-    # Optuna parameters
-    parser.add_argument('--use-optuna', action='store_true',
+    parser.add_argument('--optuna', type=str2bool, nargs='?', const=True, default=False,
                         help='Enable hyperparameter tuning with Optuna')
     parser.add_argument('--n-trials', type=int, default=50,
                         help='Number of trials for Optuna study')
@@ -182,14 +183,13 @@ class Trainer:
         self.num_classes = args.num_classes
         self.use_hyperbolic = args.manifold == 'hyperbolic'
         self.debug = args.debug
-        self.use_wandb = args.use_wandb
+        self.wandb = args.wandb
         self.dice_weight = args.dice_weight
         self.class_weights = class_weights
-        self.use_amp = args.use_amp and self.device.type == 'cuda'
+        self.amp = args.amp and self.device.type == 'cuda'
         
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.amp)
         
-        # Separate backbone and head parameters for different learning rates
         backbone_params = []
         head_params = []
         for name, param in model.named_parameters():
@@ -235,7 +235,6 @@ class Trainer:
                 patience=args.scheduler_rop_patience,
             )
         
-        # Initialize IoU metric
         self.train_iou = MulticlassJaccardIndex(
             num_classes=args.num_classes,
             ignore_index=255
@@ -269,7 +268,7 @@ class Trainer:
             masks = masks.to(self.device)
             
             self.optimizer.zero_grad()
-            with torch.cuda.amp.autocast(enabled=self.use_amp):
+            with torch.cuda.amp.autocast(enabled=self.amp):
                 outputs = self.model(images)
                 loss = self.compute_loss(outputs, masks)
             
@@ -281,7 +280,7 @@ class Trainer:
             
             total_loss += loss.item()
             
-            if self.use_wandb and batch_idx % 10 == 0:  
+            if self.wandb and batch_idx % 10 == 0:  
                 wandb.log({
                     'batch/train_loss': loss.item(),
                 })
@@ -304,7 +303,7 @@ class Trainer:
                 images = images.to(self.device)
                 masks = masks.to(self.device)
                 
-                with torch.cuda.amp.autocast(enabled=self.use_amp):
+                with torch.cuda.amp.autocast(enabled=self.amp):
                     outputs = self.model(images)
                     loss = self.compute_loss(outputs, masks)
                 
@@ -331,7 +330,6 @@ def run_training(args, trial=None):
     Returns:
         best_val_iou: Best validation IoU achieved during training
     """
-    # Setup run directory and logging
     if not args.run_name:
         run_name_parts = [datetime.now().strftime("%Y-%m-%d_%H-%M-%S")]
         if args.wandb_name:
@@ -343,12 +341,10 @@ def run_training(args, trial=None):
     
     os.makedirs(args.checkpoint_dir, exist_ok=True)
 
-    # Setup logging to file and console
     log_file = os.path.join(args.run_dir, 'run.log')
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     
-    # Remove any existing handlers
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
@@ -357,7 +353,7 @@ def run_training(args, trial=None):
     logger.addHandler(file_handler)
 
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter('%(message)s')) # Cleaner console output
+    console_handler.setFormatter(logging.Formatter('%(message)s'))
     logger.addHandler(console_handler)
     
     logging.info("Starting new run...")
@@ -367,21 +363,18 @@ def run_training(args, trial=None):
         logging.info(f"{arg:20s}: {value}")
     logging.info("-" * 40)
     
-    # Setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device: {device}")
-    if args.use_amp and device.type == 'cuda':
+    if args.amp and device.type == 'cuda':
         logging.info("Using Automatic Mixed Precision (AMP).")
     logging.info(f"Debug mode: {'enabled' if args.debug else 'disabled'}")
 
-    # Set number of classes based on dataset
     if args.dataset == 'cityscapes':
         args.num_classes = 19
     elif args.dataset == 'pascal-voc':
         args.num_classes = 21
 
-    # Initialize wandb
-    if args.use_wandb:
+    if args.wandb:
         wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
@@ -389,16 +382,12 @@ def run_training(args, trial=None):
             config=vars(args)
         )
 
-    # Create checkpoint directory if needed
-    if args.save_model:
+    if args.save_checkpoints:
         os.makedirs(args.checkpoint_dir, exist_ok=True)
 
-    # Class balancing is now handled inside the dataset class for Cityscapes.
-    # For other datasets, this needs to be implemented in their respective classes.
     if args.dataset == 'pascal-voc':
         logging.info("Class balancing for Pascal VOC is not implemented in the dataset class yet.")
 
-    # Define albumentations transforms for training
     if args.debug:
         train_transform = A.Compose([
             A.Resize(height=args.img_size[0], width=args.img_size[1]),
@@ -420,7 +409,6 @@ def run_training(args, trial=None):
             ToTensorV2(),
         ])
     
-    # Define albumentations transforms for validation
     val_transform = A.Compose([
         A.Resize(height=args.img_size[0], width=args.img_size[1]),
         A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -455,12 +443,11 @@ def run_training(args, trial=None):
     else:
         raise ValueError(f"Unknown dataset: {args.dataset}")
 
-    # Create dataloaders
     train_loader = DataLoader(
         train_dataset, 
         batch_size=args.batch_size, 
-        shuffle=not args.debug,  # Don't shuffle in debug mode
-        num_workers=args.num_workers if not args.debug else 0,  # Use 0 workers in debug mode
+        shuffle=not args.debug,
+        num_workers=args.num_workers if not args.debug else 0,
         pin_memory=True
     )
     
@@ -475,18 +462,16 @@ def run_training(args, trial=None):
             pin_memory=True
         )
 
-    # Get class_weights from dataset object and move to device
     class_weights = None
     if not args.debug and hasattr(train_dataset, 'class_weights') and train_dataset.class_weights is not None:
         class_weights= train_dataset.class_weights.to(device)
 
-    # Initialize model based on arguments
     if args.manifold == 'hyperbolic':
         model = HyperbolicFPN(
             num_classes=args.num_classes,
             checkpoint_path=args.pretrained_checkpoint_path,
-            use_batch_norm=args.use_batch_norm,
-            use_mobius_addition=args.use_mobius_addition
+            use_batch_norm=args.batch_norm,
+            use_mobius_addition=args.mobius_addition
         )
     else:
         # model = ERFNet(
@@ -497,13 +482,12 @@ def run_training(args, trial=None):
             backbone=args.backbone,
             num_classes=args.num_classes, 
             pretrained=args.pretrained,
-            use_batch_norm=args.use_batch_norm
+            use_batch_norm=args.batch_norm
         )
         
     
     trainer = Trainer(model, device, args, class_weights=class_weights)
 
-    # Resuming from checkpoint
     start_epoch = 0
     best_val_iou = 0.0
     if args.resume_checkpoint:
@@ -525,7 +509,6 @@ def run_training(args, trial=None):
         else:
             logging.error(f"No checkpoint found at '{args.resume_checkpoint}'")
 
-    # Training loop
     num_epochs = args.num_epochs
     
     for epoch in range(start_epoch, num_epochs):
@@ -543,19 +526,17 @@ def run_training(args, trial=None):
             else:
                 trainer.lr_scheduler.step()
         
-        # Pruning if Optuna is enabled
         if trial is not None and train_iou > 0:
             iou_ratio = val_iou / train_iou
             trial.report(val_iou, epoch)
             
             if iou_ratio < args.prune_threshold and epoch >= args.prune_patience:
                 logging.info(f"Trial pruned at epoch {epoch+1} with val_iou/train_iou = {iou_ratio:.4f}")
-                if args.use_wandb:
+                if args.wandb:
                     wandb.finish()
                 raise optuna.TrialPruned()
         
-        # Log metrics to wandb
-        if args.use_wandb:
+        if args.wandb:
             log_data = {
                 'epoch': epoch + 1,
                 'train/loss': train_loss,
@@ -569,7 +550,7 @@ def run_training(args, trial=None):
                 log_data['g-score'] = val_iou / train_iou
             wandb.log(log_data)
 
-        if args.save_model and (epoch + 1) % args.save_interval == 0:
+        if args.save_checkpoints and (epoch + 1) % args.save_interval == 0:
             checkpoint_path = os.path.join(args.checkpoint_dir, f'checkpoint_epoch_{epoch+1}.pth')
             checkpoint = {
                 'epoch': epoch,
@@ -586,11 +567,10 @@ def run_training(args, trial=None):
             torch.save(checkpoint, checkpoint_path)
             logging.info(f"Saved model checkpoint to {checkpoint_path}")
             
-            # Log model checkpoint to wandb
-            if args.use_wandb:
+            if args.wandb:
                 wandb.save(checkpoint_path)
         
-        if args.save_model and val_iou > best_val_iou:
+        if args.save_checkpoints and val_iou > best_val_iou:
             best_val_iou = val_iou
             checkpoint_path = os.path.join(args.checkpoint_dir, 'best_model.pth')
             checkpoint = {
@@ -606,14 +586,12 @@ def run_training(args, trial=None):
             torch.save(checkpoint, checkpoint_path)
             logging.info(f"Saved best model checkpoint to {checkpoint_path} (best IoU)")
             
-            # Log best model to wandb
-            if args.use_wandb:
+            if args.wandb:
                 wandb.save(checkpoint_path)
                 wandb.run.summary['best_val_iou'] = best_val_iou
                 wandb.run.summary['best_epoch'] = epoch + 1
 
-    # Close wandb run
-    if args.use_wandb:
+    if args.wandb:
         wandb.finish()
     
     return best_val_iou
@@ -625,17 +603,15 @@ def main():
     """
     base_args = get_args()
 
-    if base_args.use_optuna:
+    if base_args.optuna:
         def objective(trial):
             trial_args = argparse.Namespace(**vars(base_args))
 
-            # trial_args.pretrained = trial.suggest_categorical('pretrained', [True, False])
             trial_args.lr = trial.suggest_float('lr', 1e-5, 1e-2, log=True)
             trial_args.backbone_lr_factor = trial.suggest_float('backbone_lr_factor', 0.01, 0.5, log=True)
             trial_args.weight_decay = trial.suggest_float('weight_decay', 1e-6, 1e-3, log=True)
 
-            # Setting a unique name for wandb run if it's enabled
-            if trial_args.use_wandb:
+            if trial_args.wandb:
                 trial_args.wandb_name = f"trial-{trial.number}"
 
             print(f"\nStarting trial {trial.number} with params: {trial.params}")
