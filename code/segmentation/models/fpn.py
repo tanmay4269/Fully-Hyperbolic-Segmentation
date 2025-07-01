@@ -253,27 +253,67 @@ class HyperbolicFPN(nn.Module):
 
 def profile_model(model, input_tensor, model_name="Model"):
     print(f"--- Profiling {model_name} ---")
+    
+    # Check if CUDA is available
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
+    
+    # Move model and input to device
+    model = model.to(device)
+    input_tensor = input_tensor.to(device)
+    
     # Parameter count
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Total parameters: {total_params/1e6:.2f}M")
     print(f"Trainable parameters: {trainable_params/1e6:.2f}M")
+    
+    # Calculate parameter memory usage
+    param_memory = sum(p.numel() * p.element_size() for p in model.parameters())
+    print(f"Parameter memory: {param_memory/1e6:.2f}MB")
+    
+    # GPU memory before forward pass
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
+        gpu_memory_before = torch.cuda.memory_allocated() / 1e6
+        print(f"GPU memory before forward pass: {gpu_memory_before:.2f}MB")
 
-    # Memory and FLOPs
+    # Memory and FLOPs profiling
+    activities = [torch.profiler.ProfilerActivity.CPU]
+    if torch.cuda.is_available():
+        activities.append(torch.profiler.ProfilerActivity.CUDA)
+    
     with torch.profiler.profile(
-        activities=[torch.profiler.ProfilerActivity.CPU],
+        activities=activities,
         record_shapes=True,
         profile_memory=True,
         with_stack=False
     ) as prof:
         with torch.no_grad():
-            model(input_tensor)
+            output = model(input_tensor)
+    
+    # GPU memory after forward pass
+    if torch.cuda.is_available():
+        gpu_memory_after = torch.cuda.memory_allocated() / 1e6
+        gpu_memory_peak = torch.cuda.max_memory_allocated() / 1e6
+        print(f"GPU memory after forward pass: {gpu_memory_after:.2f}MB")
+        print(f"GPU memory peak: {gpu_memory_peak:.2f}MB")
+        print(f"GPU memory used during forward pass: {gpu_memory_after - gpu_memory_before:.2f}MB")
 
-    print("\n--- Profiler Results (CPU) ---")
+    print(f"\n--- Profiler Results ({'CUDA' if torch.cuda.is_available() else 'CPU'}) ---")
     print("--- Memory Usage ---")
-    print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=20))
-    print("\n--- CPU Time ---")
-    print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
+    if torch.cuda.is_available():
+        print(prof.key_averages().table(sort_by="self_cuda_memory_usage", row_limit=20))
+    else:
+        print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=20))
+    
+    print("\n--- Time Usage ---")
+    if torch.cuda.is_available():
+        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=20))
+    else:
+        print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
+    
     print("-" * 50)
 
 
