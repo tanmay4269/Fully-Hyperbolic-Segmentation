@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.profiler
 from torchvision.models import resnet18, resnet34, resnet50, resnet101
 
 from lib.models.resnet import Lorentz_resnet18_wrapper
@@ -248,3 +249,41 @@ class HyperbolicFPN(nn.Module):
 
         # 4. map back to manifold
         return self.manifold.expmap0(u_interp)
+
+
+def profile_model(model, input_tensor, model_name="Model"):
+    print(f"--- Profiling {model_name} ---")
+    # Parameter count
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total parameters: {total_params/1e6:.2f}M")
+    print(f"Trainable parameters: {trainable_params/1e6:.2f}M")
+
+    # Memory and FLOPs
+    with torch.profiler.profile(
+        activities=[torch.profiler.ProfilerActivity.CPU],
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=False
+    ) as prof:
+        with torch.no_grad():
+            model(input_tensor)
+
+    print("\n--- Profiler Results (CPU) ---")
+    print("--- Memory Usage ---")
+    print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=20))
+    print("\n--- CPU Time ---")
+    print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=20))
+    print("-" * 50)
+
+
+if __name__ == '__main__':
+    # Profile FPN
+    fpn_model = FPN(backbone='resnet18', num_classes=19)
+    dummy_input_fpn = torch.randn(1, 3, 512, 1024) # Cityscapes-like resolution
+    profile_model(fpn_model, dummy_input_fpn, model_name="FPN (ResNet-18)")
+
+    # Profile HyperbolicFPN
+    hfpn_model = HyperbolicFPN(num_classes=19)
+    dummy_input_hfpn = torch.randn(1, 3, 512, 1024) # Cityscapes-like resolution
+    profile_model(hfpn_model, dummy_input_hfpn, model_name="HyperbolicFPN (Lorentz ResNet-18)")
