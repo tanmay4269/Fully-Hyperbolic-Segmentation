@@ -11,6 +11,6 @@ python segmentation_trainer.py \
   --num-epochs 160 \
   --subsample-percentage 10.0 \
   --save-checkpoints \
-  --wandb \
-  --wandb-name subsample_10_percent_euclid_b4_lr_0.0015 \
-  --wandb-project hseg-cityscapes
+  # --wandb \
+  # --wandb-name subsample_10_percent_euclid_b4_lr_0.0015 \
+  # --wandb-project hseg-cityscapes
