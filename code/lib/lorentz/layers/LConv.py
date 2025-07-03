@@ -377,3 +377,68 @@ def profile_lorentz_conv2d(manifold, in_channels, out_channels, kernel_size, inp
     profile_results['unaccounted_percent'] = (profile_results['unaccounted'] / total_time) * 100
     
     return profile_results
+
+if __name__ == "__main__":
+    import sys
+    import os
+    import json
+    from tabulate import tabulate
+    
+    # Add parent directory to path to import CustomLorentz
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+    
+    # Import the manifold
+    from lib.lorentz.manifold import CustomLorentz
+    
+    # Create manifold
+    manifold = CustomLorentz(k=1.0)
+    
+    # Define configurations to profile
+    configs = [
+        {"in_channels": 64, "out_channels": 128, "kernel_size": 3, "input_size": (32, 32)},
+        {"in_channels": 128, "out_channels": 256, "kernel_size": 3, "input_size": (16, 16)},
+        {"in_channels": 256, "out_channels": 512, "kernel_size": 3, "input_size": (8, 8)},
+    ]
+    
+    # Run profiling for each configuration
+    results = {}
+    for i, config in enumerate(configs):
+        print(f"Profiling configuration {i+1}/{len(configs)}: {config}")
+        
+        # Run profiling
+        profile_result = profile_lorentz_conv2d(
+            manifold=manifold,
+            in_channels=config["in_channels"],
+            out_channels=config["out_channels"],
+            kernel_size=config["kernel_size"],
+            input_size=config["input_size"],
+            iterations=50,  # Reduce iterations for quicker results
+            warmup=5
+        )
+        
+        # Store results
+        config_name = f"{config['in_channels']}x{config['out_channels']}_{config['input_size'][0]}x{config['input_size'][1]}"
+        results[config_name] = profile_result
+    
+    # Print results in a table
+    table_data = []
+    headers = ["Configuration", "Total (ms)", "Unfold (%)", "Patch Processing (%)", "Linearized Kernel (%)", "Memory (MB)"]
+    
+    for config_name, result in results.items():
+        table_data.append([
+            config_name,
+            f"{result['total']:.3f}",
+            f"{result['unfold_percent']:.2f}%",
+            f"{result['patch_processing_percent']:.2f}%",
+            f"{result['linearized_kernel_percent']:.2f}%",
+            f"{result['memory']['allocated']:.2f}"
+        ])
+    
+    print("\nProfiling Results:")
+    print(tabulate(table_data, headers=headers, tablefmt="grid"))
+    
+    # Save results to file
+    with open("lorentz_conv2d_profile_results.json", "w") as f:
+        json.dump(results, f, indent=4)
+    
+    print(f"\nDetailed results saved to lorentz_conv2d_profile_results.json")
