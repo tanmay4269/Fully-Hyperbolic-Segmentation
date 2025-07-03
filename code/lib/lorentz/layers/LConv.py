@@ -247,198 +247,70 @@ class LorentzConvTranspose2d(nn.Module):
 
         return x
 
-def profile_lorentz_conv2d(manifold, in_channels, out_channels, kernel_size, input_size, 
-                          stride=1, padding=0, dilation=1, bias=True, LFC_normalize=False, 
-                          iterations=100, warmup=10):
-    """
-    Profiles the LorentzConv2d layer with detailed CUDA timing.
-    
-    Args:
-        manifold: Instance of Lorentz manifold
-        in_channels: Number of input channels
-        out_channels: Number of output channels
-        kernel_size: Size of the convolutional kernel
-        input_size: Tuple of (height, width) for input tensor
-        stride: Stride of convolution
-        padding: Padding of convolution
-        dilation: Dilation of convolution
-        bias: Whether to use bias
-        LFC_normalize: Whether to use normalization in LFC
-        iterations: Number of iterations for profiling
-        warmup: Number of warmup iterations
-        
-    Returns:
-        Dictionary containing profiling results for each operation
-    """
-    if not torch.cuda.is_available():
-        raise RuntimeError("CUDA is not available. Cannot perform CUDA profiling.")
-    
-    # Create model and move to GPU
-    conv = LorentzConv2d(
-        manifold=manifold,
-        in_channels=in_channels,
-        out_channels=out_channels,
-        kernel_size=kernel_size,
-        stride=stride,
-        padding=padding,
-        dilation=dilation,
-        bias=bias,
-        LFC_normalize=LFC_normalize
-    ).cuda()
-    
-    # Create input tensor
-    batch_size = 16
-    h, w = input_size
-    
-    # Create a valid Lorentz point for the first coordinate
-    x = torch.randn(batch_size, h, w, in_channels).cuda()
-    x[..., 0] = torch.sqrt(manifold.k + torch.sum(x[..., 1:] ** 2, dim=-1))
-    
-    # Warmup
-    for _ in range(warmup):
-        out = conv(x)
-        torch.cuda.synchronize()
-    
-    # Dictionary to store profiling results
-    profile_results = {
-        'total': 0.0,
-        'unfold': 0.0,
-        'patch_processing': 0.0,
-        'linearized_kernel': 0.0
-    }
-    
-    # Start profiling
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-    
-    # Profile total time
-    start_event.record()
-    for _ in range(iterations):
-        out = conv(x)
-    end_event.record()
-    torch.cuda.synchronize()
-    profile_results['total'] = start_event.elapsed_time(end_event) / iterations
-    
-    # Profile unfold operation
-    start_event.record()
-    for _ in range(iterations):
-        x_permuted = x.permute(0, 3, 1, 2)
-        patches = conv.unfold(x_permuted)
-        patches = patches.permute(0, 2, 1)
-    end_event.record()
-    torch.cuda.synchronize()
-    profile_results['unfold'] = start_event.elapsed_time(end_event) / iterations
-    
-    # Profile patch processing
-    x_permuted = x.permute(0, 3, 1, 2)
-    patches = conv.unfold(x_permuted)
-    patches = patches.permute(0, 2, 1)
-    
-    start_event.record()
-    for _ in range(iterations):
-        patches_time = torch.clamp(patches.narrow(-1, 0, conv.kernel_len), min=manifold.k.sqrt())
-        patches_time_rescaled = torch.sqrt(torch.sum(patches_time ** 2, dim=-1, keepdim=True) - ((conv.kernel_len - 1) * manifold.k))
-        patches_space = patches.narrow(-1, conv.kernel_len, patches.shape[-1] - conv.kernel_len)
-        patches_space = patches_space.reshape(patches_space.shape[0], patches_space.shape[1], in_channels - 1, -1).transpose(-1, -2).reshape(patches_space.shape)
-        patches_pre_kernel = torch.concat((patches_time_rescaled, patches_space), dim=-1)
-    end_event.record()
-    torch.cuda.synchronize()
-    profile_results['patch_processing'] = start_event.elapsed_time(end_event) / iterations
-    
-    # Profile linearized kernel
-    patches_time = torch.clamp(patches.narrow(-1, 0, conv.kernel_len), min=manifold.k.sqrt())
-    patches_time_rescaled = torch.sqrt(torch.sum(patches_time ** 2, dim=-1, keepdim=True) - ((conv.kernel_len - 1) * manifold.k))
-    patches_space = patches.narrow(-1, conv.kernel_len, patches.shape[-1] - conv.kernel_len)
-    patches_space = patches_space.reshape(patches_space.shape[0], patches_space.shape[1], in_channels - 1, -1).transpose(-1, -2).reshape(patches_space.shape)
-    patches_pre_kernel = torch.concat((patches_time_rescaled, patches_space), dim=-1)
-    
-    start_event.record()
-    for _ in range(iterations):
-        out = conv.linearized_kernel(patches_pre_kernel)
-    end_event.record()
-    torch.cuda.synchronize()
-    profile_results['linearized_kernel'] = start_event.elapsed_time(end_event) / iterations
-    
-    # Calculate memory usage
-    memory_stats = {
-        'allocated': torch.cuda.memory_allocated() / (1024 ** 2),  # MB
-        'reserved': torch.cuda.memory_reserved() / (1024 ** 2)     # MB
-    }
-    profile_results['memory'] = memory_stats
-    
-    # Calculate percentage of time spent in each operation
-    total_time = profile_results['total']
-    for key in ['unfold', 'patch_processing', 'linearized_kernel']:
-        profile_results[f'{key}_percent'] = (profile_results[key] / total_time) * 100
-    
-    # Calculate unaccounted time
-    accounted_time = profile_results['unfold'] + profile_results['patch_processing'] + profile_results['linearized_kernel']
-    profile_results['unaccounted'] = total_time - accounted_time
-    profile_results['unaccounted_percent'] = (profile_results['unaccounted'] / total_time) * 100
-    
-    return profile_results
 
-if __name__ == "__main__":
-    import sys
-    import os
-    import json
-    from tabulate import tabulate
-    
-    # Add parent directory to path to import CustomLorentz
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-    
-    # Import the manifold
-    from lib.lorentz.manifold import CustomLorentz
-    
-    # Create manifold
-    manifold = CustomLorentz(k=1.0)
-    
-    # Define configurations to profile
-    configs = [
-        {"in_channels": 64, "out_channels": 128, "kernel_size": 3, "input_size": (32, 32)},
-        {"in_channels": 128, "out_channels": 256, "kernel_size": 3, "input_size": (16, 16)},
-        {"in_channels": 256, "out_channels": 512, "kernel_size": 3, "input_size": (8, 8)},
-    ]
-    
-    # Run profiling for each configuration
-    results = {}
-    for i, config in enumerate(configs):
-        print(f"Profiling configuration {i+1}/{len(configs)}: {config}")
+import torch.profiler
+
+def profile_lorentz_conv2d(model, input_tensor, n_warmup=5, n_runs=20):
+    """
+    Profiles a LorentzConv2d layer with detailed CUDA profiling.
+    """
+    model.eval()
+    for _ in range(n_warmup):
+        model(input_tensor)
+    torch.cuda.synchronize()
+
+    with torch.profiler.profile(
+        activities=[
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ],
+        record_shapes=True,
+        with_stack=True,
+        profile_memory=True,
+    ) as prof:
+        for _ in range(n_runs):
+            with torch.profiler.record_function("lorentz_conv2d_forward"):
+                model(input_tensor)
+                torch.cuda.synchronize()
+
+    print("--- LorentzConv2d Profiling Results ---")
+    print(prof.key_averages(group_by_stack_n=5).table(sort_by="cuda_time_total", row_limit=20))
+    print("---------------------------------------")
+
+
+if __name__ == '__main__':
+    if not torch.cuda.is_available():
+        print("CUDA is not available. Profiling requires a CUDA-enabled GPU.")
+    else:
+        device = torch.device("cuda:0")
         
-        # Run profiling
-        profile_result = profile_lorentz_conv2d(
-            manifold=manifold,
-            in_channels=config["in_channels"],
-            out_channels=config["out_channels"],
-            kernel_size=config["kernel_size"],
-            input_size=config["input_size"],
-            iterations=50,  # Reduce iterations for quicker results
-            warmup=5
-        )
+        # Manifold and model setup
+        k = 1.0
+        manifold = CustomLorentz(k=k)
         
-        # Store results
-        config_name = f"{config['in_channels']}x{config['out_channels']}_{config['input_size'][0]}x{config['input_size'][1]}"
-        results[config_name] = profile_result
-    
-    # Print results in a table
-    table_data = []
-    headers = ["Configuration", "Total (ms)", "Unfold (%)", "Patch Processing (%)", "Linearized Kernel (%)", "Memory (MB)"]
-    
-    for config_name, result in results.items():
-        table_data.append([
-            config_name,
-            f"{result['total']:.3f}",
-            f"{result['unfold_percent']:.2f}%",
-            f"{result['patch_processing_percent']:.2f}%",
-            f"{result['linearized_kernel_percent']:.2f}%",
-            f"{result['memory']['allocated']:.2f}"
-        ])
-    
-    print("\nProfiling Results:")
-    print(tabulate(table_data, headers=headers, tablefmt="grid"))
-    
-    # Save results to file
-    with open("lorentz_conv2d_profile_results.json", "w") as f:
-        json.dump(results, f, indent=4)
-    
-    print(f"\nDetailed results saved to lorentz_conv2d_profile_results.json")
+        in_channels = 3
+        out_channels = 64
+        kernel_size = 3
+        
+        model = LorentzConv2d(
+            manifold,
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            padding=1,
+            bias=False
+        ).to(device)
+
+        # Input tensor setup
+        batch_size = 4
+        h, w = 224, 224
+        
+        # Create a valid input tensor on the Lorentz manifold
+        # x_0^2 - ||x_s||^2 = k
+        space_part = torch.randn(batch_size, h, w, in_channels - 1, device=device)
+        time_part = torch.sqrt(k + torch.sum(space_part**2, dim=-1, keepdim=True))
+        input_tensor = torch.cat([time_part, space_part], dim=-1)
+
+        print(f"Profiling LorentzConv2d with input shape: {input_tensor.shape}")
+        
+        profile_lorentz_conv2d(model, input_tensor)
