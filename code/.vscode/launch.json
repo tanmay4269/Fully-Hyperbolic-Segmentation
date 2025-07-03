@@ -23,25 +23,6 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": false
-        },
-        {
-            "name": "CUDA C++: Debug",
-            "type": "cuda-gdb",
-            "request": "launch",
-            "program": "/root/Projects/HyperbolicCV/code/lib/lorentz/layers/cuda_kernel/hyperbolic_conv2d_kernel.so",
-            "args": [],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "cuda-gdb",
-            "setupCommands": [
-                {
-                    "description": "Enable pretty-printing for cuda-gdb",
-                    "text": "-enable-pretty-printing",
-                    "ignoreFailures": true
-                }
-            ]
         }
     ]
 }
