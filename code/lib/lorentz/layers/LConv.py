@@ -278,21 +278,53 @@ def profile_lorentz_conv2d(model, input_tensor, n_warmup=5, n_runs=20):
     print("---------------------------------------")
 
 
+def profile_torch_conv2d(model, input_tensor, n_warmup=5, n_runs=20):
+    """
+    Profiles a torch.nn.Conv2d layer with detailed CUDA profiling.
+    """
+    model.eval()
+    for _ in range(n_warmup):
+        model(input_tensor)
+    torch.cuda.synchronize()
+
+    with torch.profiler.profile(
+        activities=[
+            torch.profiler.ProfilerActivity.CPU,
+            torch.profiler.ProfilerActivity.CUDA,
+        ],
+        record_shapes=True,
+        with_stack=True,
+        profile_memory=True,
+    ) as prof:
+        for _ in range(n_runs):
+            with torch.profiler.record_function("torch_conv2d_forward"):
+                model(input_tensor)
+                torch.cuda.synchronize()
+
+    print("--- torch.nn.Conv2d Profiling Results ---")
+    print(prof.key_averages(group_by_stack_n=5).table(sort_by="cuda_time_total", row_limit=20))
+    print("-----------------------------------------")
+
+
 if __name__ == '__main__':
     if not torch.cuda.is_available():
         print("CUDA is not available. Profiling requires a CUDA-enabled GPU.")
     else:
         device = torch.device("cuda:0")
         
-        # Manifold and model setup
-        k = 1.0
-        manifold = CustomLorentz(k=k)
-        
+        # Common parameters
         in_channels = 3
         out_channels = 64
         kernel_size = 3
+        batch_size = 4
+        h, w = 224, 224
+
+        # --- LorentzConv2d Profiling ---
+        print("--- Profiling LorentzConv2d ---")
+        k = 1.0
+        manifold = CustomLorentz(k=k)
         
-        model = LorentzConv2d(
+        lorentz_model = LorentzConv2d(
             manifold,
             in_channels=in_channels,
             out_channels=out_channels,
@@ -301,16 +333,29 @@ if __name__ == '__main__':
             bias=False
         ).to(device)
 
-        # Input tensor setup
-        batch_size = 4
-        h, w = 224, 224
-        
         # Create a valid input tensor on the Lorentz manifold
         # x_0^2 - ||x_s||^2 = k
         space_part = torch.randn(batch_size, h, w, in_channels - 1, device=device)
         time_part = torch.sqrt(k + torch.sum(space_part**2, dim=-1, keepdim=True))
-        input_tensor = torch.cat([time_part, space_part], dim=-1)
+        lorentz_input = torch.cat([time_part, space_part], dim=-1)
 
-        print(f"Profiling LorentzConv2d with input shape: {input_tensor.shape}")
+        print(f"Profiling LorentzConv2d with input shape: {lorentz_input.shape}")
+        profile_lorentz_conv2d(lorentz_model, lorentz_input)
+
+        print("\n" * 3)
+
+        # --- torch.nn.Conv2d Profiling ---
+        print("--- Profiling torch.nn.Conv2d ---")
+        torch_model = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            padding=1,
+            bias=False
+        ).to(device)
+
+        # Standard torch tensor for Conv2d. Note the shape is different (channels-first)
+        torch_input = torch.randn(batch_size, in_channels, h, w, device=device)
         
-        profile_lorentz_conv2d(model, input_tensor)
+        print(f"Profiling torch.nn.Conv2d with input shape: {torch_input.shape}")
+        profile_torch_conv2d(torch_model, torch_input)
