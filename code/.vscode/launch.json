@@ -5,6 +5,18 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Debug Python-Launched CUDA",
+            "type": "cuda-gdb",
+            "request": "launch",
+            "program": "${command:python.interpreterPath}",
+            "args": ["/root/Projects/HyperbolicCV/code/lib/lorentz/layers/cuda_kernel/test_fused_kernel.py"],
+            // "cwd": "${workspaceFolder}",
+            "miDebuggerPath": "/usr/local/cuda/bin/cuda-gdb", 
+            "environment": [
+                {"name": "LD_LIBRARY_PATH", "value": "${workspaceFolder}:${env:LD_LIBRARY_PATH}"}
+            ]
+        },
+        {
             "name": "Python: Segmentation Trainer",
             "type": "debugpy",
             "request": "launch",
