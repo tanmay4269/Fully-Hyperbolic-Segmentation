@@ -75,6 +75,8 @@ __global__ void hyperbolic_conv2d_kernel(
     float* linearized_patch = patch_space + (in_channels - 1) * kernel_area;
     
     // Extract patch and separate time/space components
+    // !: Three loops crazy slow, look for faster alternatives
+    // !: Note that just the first channel needs constraint enforcement... 
     for (int ky = 0; ky < kernel_size; ky++) {
         for (int kx = 0; kx < kernel_size; kx++) {
             int patch_idx = ky * kernel_size + kx;
@@ -101,9 +103,10 @@ __global__ void hyperbolic_conv2d_kernel(
         }
     }
     
-    __syncthreads();
+    __syncthreads();  // No clue why this is needed, but claude says it's necessary
     
     // Perform Lorentz direct concatenation
+    // !: Could do the above time channel clamp here as well, which could help optimize the 3 for loops
     float rescaled_time = enforce_hyperbolic_constraint(patch_time, kernel_area, manifold_k);
     
     // Build linearized patch: [rescaled_time, flattened_space_components]
@@ -112,7 +115,7 @@ __global__ void hyperbolic_conv2d_kernel(
         linearized_patch[i + 1] = patch_space[i];
     }
     
-    __syncthreads();
+    __syncthreads();  // Potentially not needed
     
     // Compute output for all output channels
     for (int oc = 0; oc < out_channels; oc++) {
