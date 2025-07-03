@@ -1,4 +1,5 @@
 // hyperbolic_conv2d_kernel.cu
+#include <stdio.h>
 #include <cuda_runtime.h>
 #include <cublas_v2.h>
 #include <math.h>
