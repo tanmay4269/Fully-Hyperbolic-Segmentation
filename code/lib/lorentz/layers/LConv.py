@@ -246,3 +246,134 @@ class LorentzConvTranspose2d(nn.Module):
             x[..., 0].clamp_(min=self.manifold.k.sqrt()) # Fix origin padding
 
         return x
+
+def profile_lorentz_conv2d(manifold, in_channels, out_channels, kernel_size, input_size, 
+                          stride=1, padding=0, dilation=1, bias=True, LFC_normalize=False, 
+                          iterations=100, warmup=10):
+    """
+    Profiles the LorentzConv2d layer with detailed CUDA timing.
+    
+    Args:
+        manifold: Instance of Lorentz manifold
+        in_channels: Number of input channels
+        out_channels: Number of output channels
+        kernel_size: Size of the convolutional kernel
+        input_size: Tuple of (height, width) for input tensor
+        stride: Stride of convolution
+        padding: Padding of convolution
+        dilation: Dilation of convolution
+        bias: Whether to use bias
+        LFC_normalize: Whether to use normalization in LFC
+        iterations: Number of iterations for profiling
+        warmup: Number of warmup iterations
+        
+    Returns:
+        Dictionary containing profiling results for each operation
+    """
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is not available. Cannot perform CUDA profiling.")
+    
+    # Create model and move to GPU
+    conv = LorentzConv2d(
+        manifold=manifold,
+        in_channels=in_channels,
+        out_channels=out_channels,
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=padding,
+        dilation=dilation,
+        bias=bias,
+        LFC_normalize=LFC_normalize
+    ).cuda()
+    
+    # Create input tensor
+    batch_size = 16
+    h, w = input_size
+    
+    # Create a valid Lorentz point for the first coordinate
+    x = torch.randn(batch_size, h, w, in_channels).cuda()
+    x[..., 0] = torch.sqrt(manifold.k + torch.sum(x[..., 1:] ** 2, dim=-1))
+    
+    # Warmup
+    for _ in range(warmup):
+        out = conv(x)
+        torch.cuda.synchronize()
+    
+    # Dictionary to store profiling results
+    profile_results = {
+        'total': 0.0,
+        'unfold': 0.0,
+        'patch_processing': 0.0,
+        'linearized_kernel': 0.0
+    }
+    
+    # Start profiling
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+    
+    # Profile total time
+    start_event.record()
+    for _ in range(iterations):
+        out = conv(x)
+    end_event.record()
+    torch.cuda.synchronize()
+    profile_results['total'] = start_event.elapsed_time(end_event) / iterations
+    
+    # Profile unfold operation
+    start_event.record()
+    for _ in range(iterations):
+        x_permuted = x.permute(0, 3, 1, 2)
+        patches = conv.unfold(x_permuted)
+        patches = patches.permute(0, 2, 1)
+    end_event.record()
+    torch.cuda.synchronize()
+    profile_results['unfold'] = start_event.elapsed_time(end_event) / iterations
+    
+    # Profile patch processing
+    x_permuted = x.permute(0, 3, 1, 2)
+    patches = conv.unfold(x_permuted)
+    patches = patches.permute(0, 2, 1)
+    
+    start_event.record()
+    for _ in range(iterations):
+        patches_time = torch.clamp(patches.narrow(-1, 0, conv.kernel_len), min=manifold.k.sqrt())
+        patches_time_rescaled = torch.sqrt(torch.sum(patches_time ** 2, dim=-1, keepdim=True) - ((conv.kernel_len - 1) * manifold.k))
+        patches_space = patches.narrow(-1, conv.kernel_len, patches.shape[-1] - conv.kernel_len)
+        patches_space = patches_space.reshape(patches_space.shape[0], patches_space.shape[1], in_channels - 1, -1).transpose(-1, -2).reshape(patches_space.shape)
+        patches_pre_kernel = torch.concat((patches_time_rescaled, patches_space), dim=-1)
+    end_event.record()
+    torch.cuda.synchronize()
+    profile_results['patch_processing'] = start_event.elapsed_time(end_event) / iterations
+    
+    # Profile linearized kernel
+    patches_time = torch.clamp(patches.narrow(-1, 0, conv.kernel_len), min=manifold.k.sqrt())
+    patches_time_rescaled = torch.sqrt(torch.sum(patches_time ** 2, dim=-1, keepdim=True) - ((conv.kernel_len - 1) * manifold.k))
+    patches_space = patches.narrow(-1, conv.kernel_len, patches.shape[-1] - conv.kernel_len)
+    patches_space = patches_space.reshape(patches_space.shape[0], patches_space.shape[1], in_channels - 1, -1).transpose(-1, -2).reshape(patches_space.shape)
+    patches_pre_kernel = torch.concat((patches_time_rescaled, patches_space), dim=-1)
+    
+    start_event.record()
+    for _ in range(iterations):
+        out = conv.linearized_kernel(patches_pre_kernel)
+    end_event.record()
+    torch.cuda.synchronize()
+    profile_results['linearized_kernel'] = start_event.elapsed_time(end_event) / iterations
+    
+    # Calculate memory usage
+    memory_stats = {
+        'allocated': torch.cuda.memory_allocated() / (1024 ** 2),  # MB
+        'reserved': torch.cuda.memory_reserved() / (1024 ** 2)     # MB
+    }
+    profile_results['memory'] = memory_stats
+    
+    # Calculate percentage of time spent in each operation
+    total_time = profile_results['total']
+    for key in ['unfold', 'patch_processing', 'linearized_kernel']:
+        profile_results[f'{key}_percent'] = (profile_results[key] / total_time) * 100
+    
+    # Calculate unaccounted time
+    accounted_time = profile_results['unfold'] + profile_results['patch_processing'] + profile_results['linearized_kernel']
+    profile_results['unaccounted'] = total_time - accounted_time
+    profile_results['unaccounted_percent'] = (profile_results['unaccounted'] / total_time) * 100
+    
+    return profile_results
