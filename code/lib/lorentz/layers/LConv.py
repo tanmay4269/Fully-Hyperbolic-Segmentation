@@ -438,3 +438,41 @@ if __name__ == '__main__':
         
         print(f"Profiling torch.nn.Conv2d with input shape: {torch_input.shape}")
         profile_conv2d(torch_model, torch_input, "torch.nn.Conv2d")
+        
+        # --- FusedHyperbolicConv2d Profiling (CUDA kernel) ---
+        try:
+            from lib.lorentz.layers.cuda_kernel.hyperbolic_conv_python import FusedHyperbolicConv2d
+        except ImportError:
+            # Silently fail if the CUDA kernel is not available
+            FusedHyperbolicConv2d = None
+        if FusedHyperbolicConv2d is not None:
+            print("\n" * 3)
+            print("--- Profiling FusedHyperbolicConv2d (CUDA kernel) ---")
+            try:
+                fused_model = FusedHyperbolicConv2d(
+                    manifold_k=manifold.k.item(),
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=kernel_size,
+                    padding=1,
+                    bias=False
+                ).to(device)
+                
+                # Use the same Lorentz input tensor
+                print(f"Profiling FusedHyperbolicConv2d with input shape: {lorentz_input.shape}")
+                profile_conv2d(fused_model, lorentz_input, "FusedHyperbolicConv2d")
+                
+                # Verify hyperbolic constraint
+                with torch.no_grad():
+                    output = fused_model(lorentz_input)
+                    time_component = output[..., 0]
+                    space_components = output[..., 1:]
+                    constraint_violation = torch.abs(
+                        time_component**2 - torch.sum(space_components**2, dim=-1) - manifold.k
+                    )
+                    max_violation = constraint_violation.max().item()
+                    print(f"Max constraint violation: {max_violation:.6f}")
+            except Exception as e:
+                print(f"Failed to profile FusedHyperbolicConv2d: {e}")
+                import traceback
+                traceback.print_exc()
