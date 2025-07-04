@@ -166,6 +166,90 @@ class LorentzConv2d(nn.Module):
 
         return out
 
+class OptimizedLorentzConv2d(nn.Module):
+    def __init__(
+        self,
+        manifold,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        bias=True,
+        LFC_normalize=False
+    ):
+        super(OptimizedLorentzConv2d, self).__init__()
+        
+        self.manifold = manifold
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size if isinstance(kernel_size, (list, tuple)) else [kernel_size, kernel_size]
+        self.stride = stride if isinstance(stride, (list, tuple)) else [stride, stride]
+        self.padding = padding if isinstance(padding, (list, tuple)) else [padding, padding]
+        self.dilation = dilation if isinstance(dilation, (list, tuple)) else [dilation, dilation]
+        
+        # Separate weights for time and space components
+        self.time_weight = nn.Parameter(torch.randn(out_channels, 1))
+        self.space_conv = nn.Conv2d(
+            in_channels - 1, out_channels, 
+            kernel_size, stride, padding, dilation, bias=bias
+        )
+        
+        # Unfold for time component only
+        self.unfold = nn.Unfold(kernel_size, dilation, padding, stride)
+        
+        self.reset_parameters()
+    
+    def reset_parameters(self):
+        stdv = (2.0 / ((self.in_channels - 1) * self.kernel_size[0] * self.kernel_size[1])) ** 0.5
+        self.time_weight.data.uniform_(-stdv, stdv)
+    
+    def forward(self, x):
+        # Input: [2,256,512,4] (BHWC)
+        x = x.permute(0, 3, 1, 2)  # [2,4,256,512] (BCHW)
+        
+        # Split time and space components
+        time_component = x[:, 0:1, :, :]  # [2,1,256,512]
+        space_components = x[:, 1:, :, :]  # [2,3,256,512]
+        
+        # Space convolution using cuDNN (highly optimized)
+        space_output = self.space_conv(space_components)  # [2,64,256,512]
+        
+        # Time aggregation using PyTorch operations
+        time_patches = self.unfold(time_component)  # [2, kernel_h*kernel_w, num_patches]
+        time_patches = time_patches.transpose(1, 2)  # [2, num_patches, kernel_h*kernel_w]
+        
+        # Clamp time values
+        time_patches = torch.clamp(time_patches, min=self.manifold.k.sqrt())
+        
+        # Lorentz aggregation
+        kernel_size_total = self.kernel_size[0] * self.kernel_size[1]
+        time_aggregated = torch.sqrt(
+            torch.sum(time_patches ** 2, dim=-1, keepdim=True) - 
+            (kernel_size_total - 1) * self.manifold.k
+        )  # [2, num_patches, 1]
+        
+        # Apply time weight and reshape to match space_output
+        time_contribution = torch.matmul(time_aggregated, self.time_weight.t())  # [2, num_patches, out_channels]
+        
+        # Reshape to spatial dimensions
+        batch_size = space_output.size(0)
+        out_h, out_w = space_output.size(2), space_output.size(3)
+        time_contribution = time_contribution.transpose(1, 2).view(batch_size, self.out_channels, out_h, out_w)
+        
+        # Combine space and time contributions
+        combined_space = space_output + time_contribution  # [2,64,256,512]
+        
+        # Convert back to channel-last for manifold operation
+        combined_space = combined_space.permute(0, 2, 3, 1)  # [2,256,512,64]
+        
+        # Add proper time component using manifold geometry
+        final_output = self.manifold.add_time(combined_space)  # [2,256,512,65]
+        
+        return final_output
+
+
 class LorentzConvTranspose2d(nn.Module):
     """ Implements a fully hyperbolic 2D transposed convolutional layer using the Lorentz model.
 
@@ -250,37 +334,16 @@ class LorentzConvTranspose2d(nn.Module):
 
 import torch.profiler
 
-def profile_lorentz_conv2d(model, input_tensor, n_warmup=5, n_runs=20):
+def profile_conv2d(model, input_tensor, model_name="Conv2d", n_warmup=5, n_runs=20):
     """
-    Profiles a LorentzConv2d layer with detailed CUDA profiling.
-    """
-    model.eval()
-    for _ in range(n_warmup):
-        model(input_tensor)
-    torch.cuda.synchronize()
-
-    with torch.profiler.profile(
-        activities=[
-            torch.profiler.ProfilerActivity.CPU,
-            torch.profiler.ProfilerActivity.CUDA,
-        ],
-        record_shapes=True,
-        with_stack=True,
-        profile_memory=True,
-    ) as prof:
-        for _ in range(n_runs):
-            with torch.profiler.record_function("lorentz_conv2d_forward"):
-                model(input_tensor)
-                torch.cuda.synchronize()
-
-    print("--- LorentzConv2d Profiling Results ---")
-    print(prof.key_averages(group_by_stack_n=5).table(sort_by="cuda_time_total", row_limit=20))
-    print("---------------------------------------")
-
-
-def profile_torch_conv2d(model, input_tensor, n_warmup=5, n_runs=20):
-    """
-    Profiles a torch.nn.Conv2d layer with detailed CUDA profiling.
+    Profiles a convolutional layer with detailed CUDA profiling.
+    
+    Args:
+        model: The model to profile
+        input_tensor: Input tensor for the model
+        model_name: Name of the model for display in results
+        n_warmup: Number of warmup runs before profiling
+        n_runs: Number of runs to profile
     """
     model.eval()
     for _ in range(n_warmup):
@@ -297,13 +360,13 @@ def profile_torch_conv2d(model, input_tensor, n_warmup=5, n_runs=20):
         profile_memory=True,
     ) as prof:
         for _ in range(n_runs):
-            with torch.profiler.record_function("torch_conv2d_forward"):
+            with torch.profiler.record_function(f"{model_name}_forward"):
                 model(input_tensor)
                 torch.cuda.synchronize()
 
-    print("--- torch.nn.Conv2d Profiling Results ---")
+    print(f"--- {model_name} Profiling Results ---")
     print(prof.key_averages(group_by_stack_n=5).table(sort_by="cuda_time_total", row_limit=20))
-    print("-----------------------------------------")
+    print("-" * (len(model_name) + 25))
 
 
 if __name__ == '__main__':
@@ -340,9 +403,25 @@ if __name__ == '__main__':
         lorentz_input = torch.cat([time_part, space_part], dim=-1)
 
         print(f"Profiling LorentzConv2d with input shape: {lorentz_input.shape}")
-        profile_lorentz_conv2d(lorentz_model, lorentz_input)
+        profile_conv2d(lorentz_model, lorentz_input, "LorentzConv2d")
 
         print("\n" * 3)
+
+        # --- OptimizedLorentzConv2d Profiling ---
+        print("\n" * 3)
+        print("--- Profiling OptimizedLorentzConv2d ---")
+        optimized_model = OptimizedLorentzConv2d(
+            manifold,
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            padding=1,
+            bias=False
+        ).to(device)
+        
+        # Use the same Lorentz input tensor as before
+        print(f"Profiling OptimizedLorentzConv2d with input shape: {lorentz_input.shape}")
+        profile_conv2d(optimized_model, lorentz_input, "OptimizedLorentzConv2d")
 
         # --- torch.nn.Conv2d Profiling ---
         print("--- Profiling torch.nn.Conv2d ---")
@@ -358,4 +437,4 @@ if __name__ == '__main__':
         torch_input = torch.randn(batch_size, in_channels, h, w, device=device)
         
         print(f"Profiling torch.nn.Conv2d with input shape: {torch_input.shape}")
-        profile_torch_conv2d(torch_model, torch_input)
+        profile_conv2d(torch_model, torch_input, "torch.nn.Conv2d")
