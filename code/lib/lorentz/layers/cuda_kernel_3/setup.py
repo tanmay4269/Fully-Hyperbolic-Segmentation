@@ -2,11 +2,11 @@ from setuptools import setup, Extension
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 setup(
-    name='fused_lorentz_conv2d',
+    name='optimized_lorentz_conv2d',
     ext_modules=[
         CUDAExtension(
-            name='fused_lorentz_conv2d',
-            sources=['fused_lorentz_conv2d.cu'],
+            name='optimized_lorentz_conv2d',
+            sources=['optimized_lorentz_conv2d.cu'],
             extra_compile_args={
                 'cxx': ['-O3'],
                 'nvcc': [
