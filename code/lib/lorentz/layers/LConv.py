@@ -292,8 +292,8 @@ if __name__ == '__main__':
         device = torch.device("cuda:0")
         
         # Common parameters
-        in_channels = 3
-        out_channels = 64
+        in_channels = 257
+        out_channels = 513
         kernel_size = 3
         batch_size = 4
         h, w = 224, 224
@@ -322,6 +322,20 @@ if __name__ == '__main__':
         profile_conv2d(lorentz_model, lorentz_input, "LorentzConv2d")
 
         print("\n" * 3)
+
+        from cuda_kernel_2.wrapper import FusedLorentzConv2d
+        fused_lorentz_model = FusedLorentzConv2d(
+            manifold=manifold,
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=1,
+            bias=False
+        ).to(device)
+
+        profile_conv2d(fused_lorentz_model, lorentz_input, "FusedLorentzConv2d")
+
 
         # --- torch.nn.Conv2d Profiling ---
         print("--- Profiling torch.nn.Conv2d ---")
