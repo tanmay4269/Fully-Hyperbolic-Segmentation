@@ -292,8 +292,8 @@ if __name__ == '__main__':
         device = torch.device("cuda:0")
         
         # Common parameters
-        in_channels = 257
-        out_channels = 513
+        in_channels = 64
+        out_channels = 64
         kernel_size = 3
         batch_size = 4
         h, w = 224, 224
@@ -309,7 +309,7 @@ if __name__ == '__main__':
             out_channels=out_channels,
             kernel_size=kernel_size,
             padding=1,
-            bias=False
+            bias=True
         ).to(device)
 
         # Create a valid input tensor on the Lorentz manifold
@@ -323,7 +323,7 @@ if __name__ == '__main__':
 
         print("\n" * 3)
 
-        from cuda_kernel_2.wrapper import FusedLorentzConv2d
+        from cuda_kernel_3.wrapper import FusedLorentzConv2d
         fused_lorentz_model = FusedLorentzConv2d(
             manifold=manifold,
             in_channels=in_channels,
@@ -331,7 +331,7 @@ if __name__ == '__main__':
             kernel_size=kernel_size,
             stride=1,
             padding=1,
-            bias=False
+            bias=True
         ).to(device)
 
         profile_conv2d(fused_lorentz_model, lorentz_input, "FusedLorentzConv2d")
@@ -344,7 +344,7 @@ if __name__ == '__main__':
             out_channels=out_channels,
             kernel_size=kernel_size,
             padding=1,
-            bias=False
+            bias=True
         ).to(device)
 
         # Standard torch tensor for Conv2d. Note the shape is different (channels-first)

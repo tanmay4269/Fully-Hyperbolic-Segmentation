@@ -3,16 +3,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-// --- Optimized Kernel ---
-
-// Define tile dimensions. These can be tuned for specific hardware.
-// A 16x16 output tile per block is a common starting point.
+// Define tile dimensions for thread block configuration.
 #define TILE_DIM 16
-#define BLOCK_ROWS TILE_DIM
-
-// Kernel size is assumed to be small. Let's define a max for shared memory.
-#define MAX_KERNEL_H 7
-#define MAX_KERNEL_W 7
 
 __global__ void fused_lorentz_conv2d_kernel_tiled(
     const float* __restrict__ input,     // [B, H, W, C_in]
@@ -37,26 +29,20 @@ __global__ void fused_lorentz_conv2d_kernel_tiled(
     const float k_value,
     const int weight_features
 ) {
-    // --- Shared Memory Declaration ---
-    // Input tile: (TILE_DIM + K-1) x (TILE_DIM + K-1)
-    // We need a halo of (K-1)/2 on each side.
-    const int halo_h = (kernel_h - 1) / 2;
-    const int halo_w = (kernel_w - 1) / 2;
-    const int tile_h = TILE_DIM * stride_h + kernel_h - 1;
-    const int tile_w = TILE_DIM * stride_w + kernel_w - 1;
+    // --- Dynamic Shared Memory Declaration ---
+    // Declare a single, unsized extern array. Its size is provided at launch.
+    extern __shared__ float s_mem[];
 
-    // Shared memory for one tile of input data (all in_channels)
-    __shared__ float s_input[tile_h * tile_w * in_channels];
-    
-    // Shared memory for weights of the current output channel
-    __shared__ float s_weights[((in_channels - 1) * kernel_h * kernel_w) + 1];
+    // Manually partition the memory: weights first, then the input tile.
+    float* s_weights = s_mem;
+    float* s_input = &s_mem[weight_features]; // Input tile starts after weights
 
     // --- Thread Indexing ---
-    // Identify which output element this thread will compute
     const int out_x_base = blockIdx.x * TILE_DIM;
     const int out_y_base = blockIdx.y * TILE_DIM;
-    const int tx = threadIdx.x; // Thread's x-index within the block (0-15)
-    const int ty = threadIdx.y; // Thread's y-index within the block (0-15)
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+    const int thread_idx_flat = ty * TILE_DIM + tx;
 
     const int batch_idx = blockIdx.z / out_channels;
     const int out_ch = blockIdx.z % out_channels;
@@ -65,21 +51,21 @@ __global__ void fused_lorentz_conv2d_kernel_tiled(
     const int out_y = out_y_base + ty;
 
     // --- Cooperative Loading of Weights ---
-    // Each block computes for one output channel, so load its weights.
     const int weight_row_start = out_ch * weight_features;
-    for (int i = ty * TILE_DIM + tx; i < weight_features; i += TILE_DIM * TILE_DIM) {
+    for (int i = thread_idx_flat; i < weight_features; i += TILE_DIM * TILE_DIM) {
         s_weights[i] = weight[weight_row_start + i];
     }
 
     // --- Cooperative Loading of Input Tile (Global -> Shared) ---
-    // Calculate the top-left corner of the input tile in global memory
+    const int tile_h = TILE_DIM * stride_h + kernel_h - 1;
+    const int tile_w = TILE_DIM * stride_w + kernel_w - 1;
     const int in_x_origin = out_x_base * stride_w - padding_w;
     const int in_y_origin = out_y_base * stride_h - padding_h;
+    const int tile_size_elements = tile_h * tile_w * in_channels;
 
     __syncthreads(); // Wait for weights to be loaded
 
-    // Parallel load from global to shared memory
-    for (int i = ty * TILE_DIM + tx; i < tile_h * tile_w * in_channels; i += TILE_DIM * TILE_DIM) {
+    for (int i = thread_idx_flat; i < tile_size_elements; i += TILE_DIM * TILE_DIM) {
         int c = i % in_channels;
         int x = (i / in_channels) % tile_w;
         int y = i / (in_channels * tile_w);
@@ -91,7 +77,6 @@ __global__ void fused_lorentz_conv2d_kernel_tiled(
             int global_idx = ((batch_idx * in_height + in_glob_y) * in_width + in_glob_x) * in_channels + c;
             s_input[i] = input[global_idx];
         } else {
-            // Handle padding: time channel gets sqrt(k), space channels get 0
             s_input[i] = (c == 0) ? sqrtf(k_value) : 0.0f;
         }
     }
@@ -111,15 +96,11 @@ __global__ void fused_lorentz_conv2d_kernel_tiled(
             for (int kx = 0; kx < kernel_w; kx++) {
                 const int in_s_y = in_s_y_start + ky * dilation_h;
                 const int in_s_x = in_s_x_start + kx * dilation_w;
-                
                 const int s_idx_base = (in_s_y * tile_w + in_s_x) * in_channels;
 
-                // Process time component (channel 0)
                 float time_val = s_input[s_idx_base];
-                // Clamping is already handled during the padded load
                 time_sum_sq += time_val * time_val;
 
-                // Process space components
                 for (int ch = 1; ch < in_channels; ch++) {
                     float space_val = s_input[s_idx_base + ch];
                     space_result += space_val * s_weights[space_weight_idx];
@@ -140,7 +121,6 @@ __global__ void fused_lorentz_conv2d_kernel_tiled(
         output[output_idx] = final_result;
     }
 }
-
 
 torch::Tensor fused_lorentz_conv2d_cuda(
     torch::Tensor input,
@@ -179,8 +159,6 @@ torch::Tensor fused_lorentz_conv2d_cuda(
     auto output = torch::empty({batch_size, out_height, out_width, out_channels}, 
                               torch::TensorOptions().dtype(input.dtype()).device(input.device()));
     
-    // Use torch::empty instead of torch::zeros as we write to all locations.
-
     // --- Updated Kernel Launch Configuration ---
     dim3 block_dim(TILE_DIM, TILE_DIM, 1);
     dim3 grid_dim(
@@ -188,11 +166,22 @@ torch::Tensor fused_lorentz_conv2d_cuda(
         (out_height + TILE_DIM - 1) / TILE_DIM,
         batch_size * out_channels
     );
-    
-    // Check for max kernel size if you have a fixed-size shared memory array
-    TORCH_CHECK(kernel_h <= MAX_KERNEL_H && kernel_w <= MAX_KERNEL_W, "Kernel size exceeds max defined in CUDA kernel");
 
-    fused_lorentz_conv2d_kernel_tiled<<<grid_dim, block_dim>>>(
+    // --- Calculate Dynamic Shared Memory Size ---
+    const int tile_h = TILE_DIM * stride_h + kernel_h - 1;
+    const int tile_w = TILE_DIM * stride_w + kernel_w - 1;
+    size_t weights_size_bytes = weight_features * sizeof(float);
+    size_t input_tile_size_bytes = tile_h * tile_w * in_channels * sizeof(float);
+    size_t total_shared_mem = weights_size_bytes + input_tile_size_bytes;
+
+    // Optional: Check against device limits
+    // int device;
+    // cudaGetDevice(&device);
+    // cudaDeviceProp prop;
+    // cudaGetDeviceProperties(&prop, device);
+    // TORCH_CHECK(total_shared_mem < prop.sharedMemPerBlock, "Requested shared memory exceeds device limits");
+
+    fused_lorentz_conv2d_kernel_tiled<<<grid_dim, block_dim, total_shared_mem>>>(
         input.data_ptr<float>(),
         weight.data_ptr<float>(),
         bias.defined() ? bias.data_ptr<float>() : nullptr,
@@ -211,5 +200,5 @@ torch::Tensor fused_lorentz_conv2d_cuda(
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("fused_lorentz_conv2d_cuda", &fused_lorentz_conv2d_cuda, "Fused Lorentz Conv2d CUDA (Tiled)");
+    m.def("fused_lorentz_conv2d_cuda", &fused_lorentz_conv2d_cuda, "Fused Lorentz Conv2d CUDA (Tiled, Dynamic Shared)");
 }
