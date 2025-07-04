@@ -166,90 +166,6 @@ class LorentzConv2d(nn.Module):
 
         return out
 
-class OptimizedLorentzConv2d(nn.Module):
-    def __init__(
-        self,
-        manifold,
-        in_channels,
-        out_channels,
-        kernel_size,
-        stride=1,
-        padding=0,
-        dilation=1,
-        bias=True,
-        LFC_normalize=False
-    ):
-        super(OptimizedLorentzConv2d, self).__init__()
-        
-        self.manifold = manifold
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.kernel_size = kernel_size if isinstance(kernel_size, (list, tuple)) else [kernel_size, kernel_size]
-        self.stride = stride if isinstance(stride, (list, tuple)) else [stride, stride]
-        self.padding = padding if isinstance(padding, (list, tuple)) else [padding, padding]
-        self.dilation = dilation if isinstance(dilation, (list, tuple)) else [dilation, dilation]
-        
-        # Separate weights for time and space components
-        self.time_weight = nn.Parameter(torch.randn(out_channels, 1))
-        self.space_conv = nn.Conv2d(
-            in_channels - 1, out_channels, 
-            kernel_size, stride, padding, dilation, bias=bias
-        )
-        
-        # Unfold for time component only
-        self.unfold = nn.Unfold(kernel_size, dilation, padding, stride)
-        
-        self.reset_parameters()
-    
-    def reset_parameters(self):
-        stdv = (2.0 / ((self.in_channels - 1) * self.kernel_size[0] * self.kernel_size[1])) ** 0.5
-        self.time_weight.data.uniform_(-stdv, stdv)
-    
-    def forward(self, x):
-        # Input: [2,256,512,4] (BHWC)
-        x = x.permute(0, 3, 1, 2)  # [2,4,256,512] (BCHW)
-        
-        # Split time and space components
-        time_component = x[:, 0:1, :, :]  # [2,1,256,512]
-        space_components = x[:, 1:, :, :]  # [2,3,256,512]
-        
-        # Space convolution using cuDNN (highly optimized)
-        space_output = self.space_conv(space_components)  # [2,64,256,512]
-        
-        # Time aggregation using PyTorch operations
-        time_patches = self.unfold(time_component)  # [2, kernel_h*kernel_w, num_patches]
-        time_patches = time_patches.transpose(1, 2)  # [2, num_patches, kernel_h*kernel_w]
-        
-        # Clamp time values
-        time_patches = torch.clamp(time_patches, min=self.manifold.k.sqrt())
-        
-        # Lorentz aggregation
-        kernel_size_total = self.kernel_size[0] * self.kernel_size[1]
-        time_aggregated = torch.sqrt(
-            torch.sum(time_patches ** 2, dim=-1, keepdim=True) - 
-            (kernel_size_total - 1) * self.manifold.k
-        )  # [2, num_patches, 1]
-        
-        # Apply time weight and reshape to match space_output
-        time_contribution = torch.matmul(time_aggregated, self.time_weight.t())  # [2, num_patches, out_channels]
-        
-        # Reshape to spatial dimensions
-        batch_size = space_output.size(0)
-        out_h, out_w = space_output.size(2), space_output.size(3)
-        time_contribution = time_contribution.transpose(1, 2).view(batch_size, self.out_channels, out_h, out_w)
-        
-        # Combine space and time contributions
-        combined_space = space_output + time_contribution  # [2,64,256,512]
-        
-        # Convert back to channel-last for manifold operation
-        combined_space = combined_space.permute(0, 2, 3, 1)  # [2,256,512,64]
-        
-        # Add proper time component using manifold geometry
-        final_output = self.manifold.add_time(combined_space)  # [2,256,512,65]
-        
-        return final_output
-
-
 class LorentzConvTranspose2d(nn.Module):
     """ Implements a fully hyperbolic 2D transposed convolutional layer using the Lorentz model.
 
@@ -407,22 +323,6 @@ if __name__ == '__main__':
 
         print("\n" * 3)
 
-        # --- OptimizedLorentzConv2d Profiling ---
-        print("\n" * 3)
-        print("--- Profiling OptimizedLorentzConv2d ---")
-        optimized_model = OptimizedLorentzConv2d(
-            manifold,
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            padding=1,
-            bias=False
-        ).to(device)
-        
-        # Use the same Lorentz input tensor as before
-        print(f"Profiling OptimizedLorentzConv2d with input shape: {lorentz_input.shape}")
-        profile_conv2d(optimized_model, lorentz_input, "OptimizedLorentzConv2d")
-
         # --- torch.nn.Conv2d Profiling ---
         print("--- Profiling torch.nn.Conv2d ---")
         torch_model = nn.Conv2d(
@@ -439,40 +339,3 @@ if __name__ == '__main__':
         print(f"Profiling torch.nn.Conv2d with input shape: {torch_input.shape}")
         profile_conv2d(torch_model, torch_input, "torch.nn.Conv2d")
         
-        # --- FusedHyperbolicConv2d Profiling (CUDA kernel) ---
-        try:
-            from lib.lorentz.layers.cuda_kernel.hyperbolic_conv_python import FusedHyperbolicConv2d
-        except ImportError:
-            # Silently fail if the CUDA kernel is not available
-            FusedHyperbolicConv2d = None
-        if FusedHyperbolicConv2d is not None:
-            print("\n" * 3)
-            print("--- Profiling FusedHyperbolicConv2d (CUDA kernel) ---")
-            try:
-                fused_model = FusedHyperbolicConv2d(
-                    manifold_k=manifold.k.item(),
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    kernel_size=kernel_size,
-                    padding=1,
-                    bias=False
-                ).to(device)
-                
-                # Use the same Lorentz input tensor
-                print(f"Profiling FusedHyperbolicConv2d with input shape: {lorentz_input.shape}")
-                profile_conv2d(fused_model, lorentz_input, "FusedHyperbolicConv2d")
-                
-                # Verify hyperbolic constraint
-                with torch.no_grad():
-                    output = fused_model(lorentz_input)
-                    time_component = output[..., 0]
-                    space_components = output[..., 1:]
-                    constraint_violation = torch.abs(
-                        time_component**2 - torch.sum(space_components**2, dim=-1) - manifold.k
-                    )
-                    max_violation = constraint_violation.max().item()
-                    print(f"Max constraint violation: {max_violation:.6f}")
-            except Exception as e:
-                print(f"Failed to profile FusedHyperbolicConv2d: {e}")
-                import traceback
-                traceback.print_exc()
