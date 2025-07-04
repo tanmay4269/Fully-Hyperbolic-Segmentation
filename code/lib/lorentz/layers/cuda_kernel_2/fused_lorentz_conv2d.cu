@@ -6,7 +6,7 @@
 
 #define BLOCK_SIZE 256
 #define MAX_KERNEL_SIZE 11
-#define MAX_CHANNELS 1024
+#define MAX_WEIGHT_FEATURES 4096
 #define WARP_SIZE 32
 
 using namespace cooperative_groups;
@@ -49,7 +49,7 @@ __global__ void fused_lorentz_conv2d_kernel(
     const int out_x = remainder2 % out_width;
     
     // Shared memory for weight caching (cooperative loading)
-    __shared__ float s_weights[MAX_CHANNELS];
+    __shared__ float s_weights[MAX_WEIGHT_FEATURES];
     const int tid = threadIdx.x;
     const int weight_row_start = out_ch * weight_features;
     
