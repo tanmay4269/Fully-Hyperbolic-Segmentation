@@ -57,12 +57,16 @@ class FusedLorentzConv2d(nn.Module):
         if x.dim() != 4:
             raise RuntimeError(f"Expected 4D input (BHWC), got {x.dim()}D")
         
+        bias = self.bias
+        if self.bias is None:
+            bias = torch.zeros(self.out_channels, device=self.weight.device, dtype=self.weight.dtype)
+
         # Call fused CUDA kernel - outputs space components
         space_output = fused_lorentz_conv2d.fused_lorentz_conv2d_cuda(
         # space_output = fused_lorentz_conv2d_cuda(
             x.contiguous(),
             self.weight,
-            self.bias,
+            bias,
             self.kernel_size,
             self.stride,
             self.padding,
