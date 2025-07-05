@@ -8,6 +8,7 @@ from lib.models.resnet import Lorentz_resnet18_wrapper
 from lib.lorentz.manifold import CustomLorentz
 from lib.lorentz.layers import LorentzMLR
 from lib.lorentz.blocks.layer_blocks import LConv2d_Block
+from lib.lorentz.layers.LConv import maybe_compile
 
 
 class FPN(nn.Module):
@@ -251,7 +252,7 @@ class HyperbolicFPN(nn.Module):
         return self.manifold.expmap0(u_interp)
 
 
-def profile_model(model, input_tensor, model_name="Model"):
+def profile_model(model, input_tensor, model_name="Model", use_amp=False):
     print(f"--- Profiling {model_name} ---")
     
     # Check if CUDA is available
@@ -291,7 +292,8 @@ def profile_model(model, input_tensor, model_name="Model"):
         with_stack=False
     ) as prof:
         with torch.no_grad():
-            output = model(input_tensor)
+            with torch.cuda.amp.autocast(enabled=use_amp):
+                output = model(input_tensor)
     
     # GPU memory after forward pass
     if torch.cuda.is_available():
@@ -318,12 +320,25 @@ def profile_model(model, input_tensor, model_name="Model"):
 
 
 if __name__ == '__main__':
-    # Profile FPN
-    fpn_model = FPN(backbone='resnet18', num_classes=19)
-    dummy_input_fpn = torch.randn(1, 3, 512, 1024) # Cityscapes-like resolution
-    profile_model(fpn_model, dummy_input_fpn, model_name="FPN (ResNet-18)")
+    # Common dummy input (Cityscapes-like resolution)
+    dummy_input = torch.randn(4, 3, 224, 224)
 
-    # Profile HyperbolicFPN
-    hfpn_model = HyperbolicFPN(num_classes=19)
-    dummy_input_hfpn = torch.randn(1, 3, 512, 1024) # Cityscapes-like resolution
-    profile_model(hfpn_model, dummy_input_hfpn, model_name="HyperbolicFPN (Lorentz ResNet-18)")
+    # 1) Baseline Euclidean FPN (no compilation, FP32)
+    fpn_baseline = FPN(backbone='resnet18', num_classes=19)
+    profile_model(fpn_baseline, dummy_input.clone(), model_name="FPN (ResNet-18, baseline)", use_amp=False)
+
+    print("\n" * 2)
+
+    # 2) Baseline Hyperbolic FPN (no compilation, FP32)
+    hfpn_baseline = HyperbolicFPN(num_classes=19)
+    profile_model(hfpn_baseline, dummy_input.clone(), model_name="HyperbolicFPN (Lorentz ResNet-18, baseline)", use_amp=False)
+    
+    # 3) Compiled + AMP Euclidean FPN
+    fpn_compiled = maybe_compile(FPN(backbone='resnet18', num_classes=19))
+    profile_model(fpn_compiled, dummy_input.clone(), model_name="FPN (ResNet-18, compiled)", use_amp=True)
+
+    print("\n" * 2)
+
+    # 4) Compiled + AMP Hyperbolic FPN
+    hfpn_compiled = maybe_compile(HyperbolicFPN(num_classes=19))
+    profile_model(hfpn_compiled, dummy_input.clone(), model_name="HyperbolicFPN (Lorentz ResNet-18, compiled)", use_amp=True)
