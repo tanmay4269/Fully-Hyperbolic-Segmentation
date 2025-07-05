@@ -323,7 +323,7 @@ if __name__ == '__main__':
 
         print("\n" * 3)
 
-        from cuda_kernel_3.wrapper import FusedLorentzConv2d
+        from cuda_kernel_4.wrapper import FusedLorentzConv2d
         fused_lorentz_model = FusedLorentzConv2d(
             manifold=manifold,
             in_channels=in_channels,
