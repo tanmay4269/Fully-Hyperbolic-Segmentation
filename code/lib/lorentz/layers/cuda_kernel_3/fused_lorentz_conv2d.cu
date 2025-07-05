@@ -4,7 +4,7 @@
 #include <cuda_runtime.h>
 
 // Define tile dimensions for thread block configuration.
-#define TILE_DIM 16
+#define TILE_DIM 8
 
 __global__ void fused_lorentz_conv2d_kernel_tiled(
     const float* __restrict__ input,     // [B, H, W, C_in]
