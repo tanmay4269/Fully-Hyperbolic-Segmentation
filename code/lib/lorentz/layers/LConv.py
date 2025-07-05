@@ -6,6 +6,19 @@ import math
 
 from lib.lorentz.manifold import CustomLorentz
 from lib.lorentz.layers import LorentzFullyConnected
+from contextlib import nullcontext
+
+# Quick-win optimisation helpers ------------------------------------------------
+_HAS_COMPILE = hasattr(torch, "compile")
+
+def maybe_compile(module: nn.Module, mode: str = "max-autotune") -> nn.Module:
+    """Return a `torch.compile`d version of `module` when supported.
+    Falls back to the original module on older PyTorch versions.
+    """
+    if _HAS_COMPILE:
+        return torch.compile(module, mode=mode)
+    return module
+# -----------------------------------------------------------------------------
 
 class LorentzConv1d(nn.Module):
     """ Implements a fully hyperbolic 1D convolutional layer using the Lorentz model.
@@ -250,7 +263,7 @@ class LorentzConvTranspose2d(nn.Module):
 
 import torch.profiler
 
-def profile_conv2d(model, input_tensor, model_name="Conv2d", n_warmup=5, n_runs=20):
+def profile_conv2d(model, input_tensor, model_name="Conv2d", n_warmup=5, n_runs=20, use_amp=False):
     """
     Profiles a convolutional layer with detailed CUDA profiling.
     
@@ -260,10 +273,12 @@ def profile_conv2d(model, input_tensor, model_name="Conv2d", n_warmup=5, n_runs=
         model_name: Name of the model for display in results
         n_warmup: Number of warmup runs before profiling
         n_runs: Number of runs to profile
+        use_amp: Whether to use Automatic Mixed Precision (AMP) for profiling
     """
     model.eval()
     for _ in range(n_warmup):
-        model(input_tensor)
+        with torch.cuda.amp.autocast(enabled=use_amp):
+            model(input_tensor)
     torch.cuda.synchronize()
 
     with torch.profiler.profile(
@@ -277,7 +292,8 @@ def profile_conv2d(model, input_tensor, model_name="Conv2d", n_warmup=5, n_runs=
     ) as prof:
         for _ in range(n_runs):
             with torch.profiler.record_function(f"{model_name}_forward"):
-                model(input_tensor)
+                with torch.cuda.amp.autocast(enabled=use_amp):
+                    model(input_tensor)
                 torch.cuda.synchronize()
 
     print(f"--- {model_name} Profiling Results ---")
@@ -311,6 +327,7 @@ if __name__ == '__main__':
             padding=1,
             bias=True
         ).to(device)
+        lorentz_model = maybe_compile(lorentz_model)
 
         # Create a valid input tensor on the Lorentz manifold
         # x_0^2 - ||x_s||^2 = k
@@ -319,7 +336,7 @@ if __name__ == '__main__':
         lorentz_input = torch.cat([time_part, space_part], dim=-1)
 
         print(f"Profiling LorentzConv2d with input shape: {lorentz_input.shape}")
-        profile_conv2d(lorentz_model, lorentz_input, "LorentzConv2d")
+        profile_conv2d(lorentz_model, lorentz_input, "LorentzConv2d", use_amp=True)
 
         print("\n" * 3)
 
@@ -333,8 +350,9 @@ if __name__ == '__main__':
             padding=1,
             bias=True
         ).to(device)
+        fused_lorentz_model = maybe_compile(fused_lorentz_model)
 
-        profile_conv2d(fused_lorentz_model, lorentz_input, "FusedLorentzConv2d")
+        profile_conv2d(fused_lorentz_model, lorentz_input, "FusedLorentzConv2d", use_amp=True)
 
 
         # --- torch.nn.Conv2d Profiling ---
@@ -346,10 +364,11 @@ if __name__ == '__main__':
             padding=1,
             bias=True
         ).to(device)
+        torch_model = maybe_compile(torch_model)
 
         # Standard torch tensor for Conv2d. Note the shape is different (channels-first)
         torch_input = torch.randn(batch_size, in_channels, h, w, device=device)
         
         print(f"Profiling torch.nn.Conv2d with input shape: {torch_input.shape}")
-        profile_conv2d(torch_model, torch_input, "torch.nn.Conv2d")
+        profile_conv2d(torch_model, torch_input, "torch.nn.Conv2d", use_amp=True)
         
