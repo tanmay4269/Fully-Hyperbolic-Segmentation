@@ -87,11 +87,11 @@ class FPN(nn.Module):
         p3 = self.fpn3(p3)
         p4 = self.fpn4(p4)
         
-        # Upsample all to same size and concatenate
-        _, _, h, w = p1.shape
-        p2_up = self.interpolate(p2, size=(h, w), mode='bilinear')
-        p3_up = self.interpolate(p3, size=(h, w), mode='bilinear')
-        p4_up = self.interpolate(p4, size=(h, w), mode='bilinear')
+        # Upsample all to the p1 resolution using fixed scale factors (static shapes help torch.compile)
+        # p1 : 1/4 input size, p2 : 1/8, p3 : 1/16, p4 : 1/32  -> scale factors: 2, 4, 8 respectively
+        p2_up = self.interpolate(p2, scale_factor=2, mode='bilinear')
+        p3_up = self.interpolate(p3, scale_factor=4, mode='bilinear')
+        p4_up = self.interpolate(p4, scale_factor=8, mode='bilinear')
         
         # Combine features
         fused = torch.cat([p1, p2_up, p3_up, p4_up], dim=1)
@@ -279,6 +279,19 @@ def profile_model(model, input_tensor, model_name="Model", use_amp=False):
         gpu_memory_before = torch.cuda.memory_allocated() / 1e6
         print(f"GPU memory before forward pass: {gpu_memory_before:.2f}MB")
 
+    # ------------------------------------------------------------------
+    # Warm-up: run one forward pass BEFORE the profiler to trigger graph
+    # compilation (if using torch.compile) so that compile overhead does
+    # not contaminate the profiling results.
+    # ------------------------------------------------------------------
+    with torch.no_grad():
+        with torch.cuda.amp.autocast(enabled=use_amp):
+            _ = model(input_tensor)
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.reset_peak_memory_stats()
+
     # Memory and FLOPs profiling
     activities = [torch.profiler.ProfilerActivity.CPU]
     if torch.cuda.is_available():
@@ -336,12 +349,18 @@ if __name__ == '__main__':
     hfpn_baseline = HyperbolicFPN(num_classes=19)
     profile_model(hfpn_baseline, dummy_input.clone(), model_name="HyperbolicFPN (Lorentz ResNet-18, baseline)", use_amp=False)
     
-    # 3) Compiled + AMP Euclidean FPN
-    fpn_compiled = torch.compile(FPN(backbone='resnet18', num_classes=19), mode="max-autotune")
+    # 3) Compiled + AMP Euclidean FPN (use reduce-overhead mode for faster compile)
+    fpn_compiled = torch.compile(
+        FPN(backbone='resnet18', num_classes=19),
+        mode="reduce-overhead"
+    )
     profile_model(fpn_compiled, dummy_input.clone(), model_name="FPN (ResNet-18, compiled)", use_amp=True)
 
     print("\n" * 2)
 
     # 4) Compiled + AMP Hyperbolic FPN
-    hfpn_compiled = torch.compile(HyperbolicFPN(num_classes=19), mode="max-autotune")
+    hfpn_compiled = torch.compile(
+        HyperbolicFPN(num_classes=19),
+        mode="reduce-overhead"
+    )
     profile_model(hfpn_compiled, dummy_input.clone(), model_name="HyperbolicFPN (Lorentz ResNet-18, compiled)", use_amp=True)
