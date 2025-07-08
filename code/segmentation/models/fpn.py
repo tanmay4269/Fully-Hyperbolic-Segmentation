@@ -8,7 +8,17 @@ from lib.models.resnet import Lorentz_resnet18_wrapper
 from lib.lorentz.manifold import CustomLorentz
 from lib.lorentz.layers import LorentzMLR
 from lib.lorentz.blocks.layer_blocks import LConv2d_Block
-from lib.lorentz.layers.LConv import maybe_compile
+
+
+_HAS_COMPILE = hasattr(torch, "compile")
+
+def maybe_compile(module: nn.Module, mode: str = "max-autotune") -> nn.Module:
+    """Return a `torch.compile`d version of `module` when supported.
+    Falls back to the original module on older PyTorch versions.
+    """
+    if _HAS_COMPILE:
+        return torch.compile(module, mode=mode)
+    return module
 
 
 class FPN(nn.Module):

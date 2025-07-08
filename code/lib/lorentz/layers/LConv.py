@@ -327,7 +327,7 @@ if __name__ == '__main__':
             padding=1,
             bias=True
         ).to(device)
-        lorentz_model = maybe_compile(lorentz_model)
+        # lorentz_model = maybe_compile(lorentz_model)
 
         # Create a valid input tensor on the Lorentz manifold
         # x_0^2 - ||x_s||^2 = k
