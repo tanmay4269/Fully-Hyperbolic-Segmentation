@@ -3,3 +3,4 @@ wandb
 *.log
 expt*.sh
 cache
+torch_compile_debug

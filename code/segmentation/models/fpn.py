@@ -218,20 +218,6 @@ class HyperbolicFPN(nn.Module):
         return x
 
     def _hyperbolic_interp(self, x, size=None, scale_factor=None):
-        """Performs bilinear up/down-sampling in the tangent space at the origin.
-
-        Steps:
-        1.  Map x \in H to the tangent space at the origin using logmap_0.
-        2.  Apply ordinary bilinear interpolation on that Euclidean tangent space.
-        3.  Map the result back to the manifold with expmap_0.
-
-        This preserves the manifold constraint exactly and approximates
-        geodesic interpolation much better than the previous coordinate-wise
-        variant. It is still an approximation because the tangent space is
-        taken at the origin for all pixels, but it is unbiased and keeps the
-        output on H.
-        """
-
         # x is expected in BHWC format (batch, height, width, channels)
         # 1. map to tangent space
         u = self.manifold.logmap0(x)  # BHWC
@@ -280,7 +266,7 @@ def profile_model(model, input_tensor, model_name="Model", use_amp=False):
     n_warmup = 3
     with torch.no_grad():
         for _ in range(n_warmup):
-            with torch.cuda.amp.autocast(enabled=use_amp):
+            with torch.amp.autocast('cuda', enabled=use_amp):
                 _ = model(input_tensor)
 
     # GPU memory before forward pass (after warm-up)
@@ -302,7 +288,7 @@ def profile_model(model, input_tensor, model_name="Model", use_amp=False):
         with_stack=False
     ) as prof:
         with torch.no_grad():
-            with torch.cuda.amp.autocast(enabled=use_amp):
+            with torch.amp.autocast('cuda', enabled=use_amp):
                 output = model(input_tensor)
     
     # GPU memory after forward pass
