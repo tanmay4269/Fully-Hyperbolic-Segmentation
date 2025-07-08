@@ -179,10 +179,10 @@ class HyperbolicFPN(nn.Module):
         p3 = self.fpn3(p3)
         p4 = self.fpn4(p4)
         
-        _, h, w, _ = p1.shape
-        p2 = self.interpolate(p2, size=(h, w), mode='hyperbolic')
-        p3 = self.interpolate(p3, size=(h, w), mode='hyperbolic')
-        p4 = self.interpolate(p4, size=(h, w), mode='hyperbolic')
+        # p1 : 1/4 input ; p2 : 1/8 ; p3 : 1/16 ; p4 : 1/32  --> scale factors: 2,4,8 (avoid dynamic shapes)
+        p2 = self.interpolate(p2, scale_factor=2, mode='hyperbolic')
+        p3 = self.interpolate(p3, scale_factor=4, mode='hyperbolic')
+        p4 = self.interpolate(p4, scale_factor=8, mode='hyperbolic')
 
         fused = torch.cat([p1, p2, p3, p4], dim=-1)
         
@@ -272,25 +272,23 @@ def profile_model(model, input_tensor, model_name="Model", use_amp=False):
     param_memory = sum(p.numel() * p.element_size() for p in model.parameters())
     print(f"Parameter memory: {param_memory/1e6:.2f}MB")
     
-    # GPU memory before forward pass
+    # --------------------------- Warm-up & Memory reset ---------------------------
+    # Perform a few forward passes BEFORE starting the profiler so that:
+    #   • torch.compile has time to compile and autotune kernels
+    #   • cudagraph capture (used by "reduce-overhead" mode) is completed
+    #   • subsequent profiling measures stable inference latency only
+    n_warmup = 3
+    with torch.no_grad():
+        for _ in range(n_warmup):
+            with torch.cuda.amp.autocast(enabled=use_amp):
+                _ = model(input_tensor)
+
+    # GPU memory before forward pass (after warm-up)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.reset_peak_memory_stats()
         gpu_memory_before = torch.cuda.memory_allocated() / 1e6
         print(f"GPU memory before forward pass: {gpu_memory_before:.2f}MB")
-
-    # ------------------------------------------------------------------
-    # Warm-up: run one forward pass BEFORE the profiler to trigger graph
-    # compilation (if using torch.compile) so that compile overhead does
-    # not contaminate the profiling results.
-    # ------------------------------------------------------------------
-    with torch.no_grad():
-        with torch.cuda.amp.autocast(enabled=use_amp):
-            _ = model(input_tensor)
-
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.reset_peak_memory_stats()
 
     # Memory and FLOPs profiling
     activities = [torch.profiler.ProfilerActivity.CPU]
