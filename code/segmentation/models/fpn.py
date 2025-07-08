@@ -266,10 +266,7 @@ def profile_model(model, input_tensor, model_name="Model", use_amp=False):
     n_warmup = 3
     with torch.no_grad():
         for _ in range(n_warmup):
-            if device.type == 'cuda':
-                with torch.amp.autocast(device_type='cuda', enabled=use_amp):
-                    _ = model(input_tensor)
-            else:
+            with torch.amp.autocast(device_type='cuda', enabled=use_amp):
                 _ = model(input_tensor)
 
     # GPU memory before forward pass (after warm-up)
@@ -291,10 +288,7 @@ def profile_model(model, input_tensor, model_name="Model", use_amp=False):
         with_stack=False
     ) as prof:
         with torch.no_grad():
-            if device.type == 'cuda':
-                with torch.amp.autocast(device_type='cuda', enabled=use_amp):
-                    output = model(input_tensor)
-            else:
+            with torch.amp.autocast(device_type='cuda', enabled=use_amp):
                 output = model(input_tensor)
     
     # GPU memory after forward pass
@@ -343,7 +337,6 @@ if __name__ == '__main__':
     fpn_compiled = torch.compile(
         FPN(backbone='resnet18', num_classes=19),
         mode="reduce-overhead",
-        options={"cudagraphs": True}
     )
     profile_model(fpn_compiled, dummy_input.clone(), model_name="FPN (ResNet-18, compiled)", use_amp=True)
 
@@ -353,6 +346,5 @@ if __name__ == '__main__':
     hfpn_compiled = torch.compile(
         HyperbolicFPN(num_classes=19),
         mode="reduce-overhead",
-        options={"cudagraphs": False}
     )
     profile_model(hfpn_compiled, dummy_input.clone(), model_name="HyperbolicFPN (Lorentz ResNet-18, compiled)", use_amp=True)
