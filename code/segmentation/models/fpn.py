@@ -10,17 +10,6 @@ from lib.lorentz.layers import LorentzMLR
 from lib.lorentz.blocks.layer_blocks import LConv2d_Block
 
 
-_HAS_COMPILE = hasattr(torch, "compile")
-
-def maybe_compile(module: nn.Module, mode: str = "max-autotune") -> nn.Module:
-    """Return a `torch.compile`d version of `module` when supported.
-    Falls back to the original module on older PyTorch versions.
-    """
-    if _HAS_COMPILE:
-        return torch.compile(module, mode=mode)
-    return module
-
-
 class FPN(nn.Module):
     def __init__(self, backbone='resnet18', num_classes=1, pretrained=False, use_batch_norm=True):
         super().__init__()
@@ -330,6 +319,10 @@ def profile_model(model, input_tensor, model_name="Model", use_amp=False):
 
 
 if __name__ == '__main__':
+    # torch._dynamo.config.verbose = True
+    # torch._inductor.config.debug = True
+    
+    
     # Common dummy input (Cityscapes-like resolution)
     dummy_input = torch.randn(4, 3, 224, 224)
 
@@ -344,11 +337,11 @@ if __name__ == '__main__':
     profile_model(hfpn_baseline, dummy_input.clone(), model_name="HyperbolicFPN (Lorentz ResNet-18, baseline)", use_amp=False)
     
     # 3) Compiled + AMP Euclidean FPN
-    fpn_compiled = maybe_compile(FPN(backbone='resnet18', num_classes=19))
+    fpn_compiled = torch.compile(FPN(backbone='resnet18', num_classes=19), mode="max-autotune")
     profile_model(fpn_compiled, dummy_input.clone(), model_name="FPN (ResNet-18, compiled)", use_amp=True)
 
     print("\n" * 2)
 
     # 4) Compiled + AMP Hyperbolic FPN
-    hfpn_compiled = maybe_compile(HyperbolicFPN(num_classes=19))
+    hfpn_compiled = torch.compile(HyperbolicFPN(num_classes=19), mode="max-autotune")
     profile_model(hfpn_compiled, dummy_input.clone(), model_name="HyperbolicFPN (Lorentz ResNet-18, compiled)", use_amp=True)
